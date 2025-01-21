@@ -310,15 +310,19 @@ select.form-control {
 }
 
 .btn-relative-default {
-  position: relative;
-  margin-top: 30px;
-  float: right;
-  right: 20px;
+  float: left;
+  margin-bottom: 30px;
 }
 
 select {
   cursor: pointer;
 }
+
+.form-float {
+    float: left;
+    width: 100%;
+}
+
 
 
 

@@ -39,6 +39,7 @@
     "react-number-format": "^5.4.3",
     "react-router-dom": "^7.0.2",
     "react-select": "^5.9.0",
+    "react-table": "^7.8.0",
     "react-text-mask": "^5.5.0",
     "react-toastify": "^11.0.2",
     "svg2pdf.js": "^2.2.4",

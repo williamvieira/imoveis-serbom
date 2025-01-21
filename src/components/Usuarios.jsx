@@ -3,7 +3,7 @@ import DataTable from "react-data-table-component";
 import * as XLSX from "xlsx";
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFloppyDisk, faPlus, faPenToSquare, faTrash, faCheck, faFileExcel, faFilter, faXmark, faSearch } from '@fortawesome/free-solid-svg-icons';
+import { faCopy, faClose, faFloppyDisk, faPlus, faPenToSquare, faTrash, faCheck, faFileExcel, faFilter, faXmark, faSearch } from '@fortawesome/free-solid-svg-icons';
 import { Alert } from "react-bootstrap";
 import { CurrencyInput } from 'react-currency-mask';
 import InputMask from "react-input-mask";  // Importando a biblioteca de máscara
@@ -22,6 +22,47 @@ const Usuarios = () => {
     permissoesMatricula: false
   });
 
+  const validEmail1 = (e) => {
+    const { name, value } = e.target;
+    const validation = validarEmail(value);
+    if (!validation.isValid) {
+      setError1(validation.message);
+      setFormData({ ...formData, emailContato1: '' });
+    } else {
+      setError1("");
+    }
+  };
+
+  const handleCopy = () => {
+    // Copiar todos os dados da tabela
+    const tableData = data.map(row => {
+      return Object.values(row).join('\t');
+    }).join('\n');
+  
+    // Copiar para a área de transferência
+    navigator.clipboard.writeText(tableData).then(() => {
+      setShowModalCopy(true);
+    });
+  };
+  
+
+  
+  // Função para validar o e-mail
+function validarEmail(email) {
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+  if (!email.trim()) {
+    return { isValid: false, message: 'O e-mail não pode estar vazio.' };
+  }
+
+  if (!emailRegex.test(email)) {
+    return { isValid: false, message: 'Por favor, insira um e-mail válido.' };
+  }
+
+  return { isValid: true, message: 'E-mail válido.' };
+}
+  
+
 
       const [data, setData] = useState(initialData);
       const [errors, setErrors] = useState({});
@@ -37,6 +78,8 @@ const Usuarios = () => {
       const [editingId, setEditingId] = useState(null);
       const errorRef = useRef(null); // Ref para o erro
       const editRef = useRef(null); // Ref para o erro
+        const [errorEmail1, setError1] = useState('');
+         const [showModalCopy, setShowModalCopy] = useState(false);
 
 
     useEffect(() => {
@@ -328,9 +371,15 @@ useEffect(() => {
       <button className="btn btn-dark mb-3 btnExport" onClick={handleExport}> <FontAwesomeIcon icon={faFileExcel} /> Excel</button>
       )}
 
+       {data.length > 0 && (
+            <button className="btn btn-dark mb-3  btn-info-grid" onClick={handleCopy}>  <FontAwesomeIcon icon={faCopy} /> Copiar</button>
+           )}
+
   {data.length > 0 && (
           <button className="btn btn-secondary mb-3 btn-info-grid" onClick={toggleVisibility}> <FontAwesomeIcon icon={faFilter} /> Filtrar </button>
         )}
+
+        
      
 
         <div id="datatable-container">
@@ -373,22 +422,20 @@ useEffect(() => {
           
         </div>
 
-        <div className="row">
-          <div className="col-md-12">
-          {isVisibleAdd && (
-              <button type="submit" onClick={addIMovel} className="btn btn-primary btn-relative-default">
-                  <FontAwesomeIcon icon={faPlus} /> Adicionar Usuário
-                </button>
-            )}
-          </div>
-        </div>
+     
+       
        
                     <div className="card shadow-lg border-0 rounded-lg mt-4 mt-20">
+                      
                     <div className="card-body">
-
+                    {isVisibleAdd && (
+              <button type="submit" onClick={addIMovel} className="btn btn-light btn-relative-default">
+                  <FontAwesomeIcon icon={faClose} /> Limpar
+                </button>
+            )}
                   
       {/* Formulário de Adição de Usuário com Floating Labels */}
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="form-float">
       <div className="mb-3 form-floating" ref={editRef}>
         <input
             type="text"
@@ -405,15 +452,17 @@ useEffect(() => {
         <div className="mb-3 form-floating">
           <input
             type="email"
-            className="form-control"
+            className={`form-control ${errorEmail1 ? 'is-invalid' : ''}`}
             id="email"
             name="email"
             value={formData.email}
             onChange={handleInputChange}
+            onBlur={validEmail1}
             required
             placeholder=""
           />
           <label htmlFor="email">E-mail <span className="red">*</span></label>
+          {errorEmail1 && <p style={{ color: 'red' }}>{errorEmail1}</p>}
         </div>
         <div className="mb-3 form-floating">
           <input
@@ -428,6 +477,7 @@ useEffect(() => {
             minLength={8}
           />
           <label htmlFor="password">Senha</label>
+       
         </div>
         <div className="mb-3 form-floating">
                 <select
@@ -500,7 +550,27 @@ useEffect(() => {
                     </div>
                   </div>
                 )}
+
+                 {showModalCopy && (
+                                                        <div className="modal fade show" style={{ display: 'block', paddingRight: '17px' }} tabIndex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+                                                          <div className="modal-dialog modal-dialog-centered">
+                                                            <div className="modal-content">
+                                                              <div className="modal-header">
+                                              
+                                                                <button type="button" className="btn-close" onClick={() => setShowModalCopy(false)}></button>
+                                                              </div>
+                                                              <div className="modal-body">
+                                                                Dados copiados com sucesso.
+                                                              </div>
+                                                              <div className="modal-footer">
+                                                                <button type="button" className="btn btn-primary" onClick={() => setShowModalCopy(false)}> <FontAwesomeIcon icon={faCheck} /> OK</button>
+                                                              </div>
+                                                            </div>
+                                                          </div>
+                                                        </div>
+                                                      )}
     </div>
+    
     
   );
 };

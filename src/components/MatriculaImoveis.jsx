@@ -39,12 +39,30 @@ function MatriculaImoveis() {
   const [inputValue, setInputValue] = useState(''); // Valor digitado pelo usuário
   const [optionsSelect, setOptions] = useState([]); 
   const [key, setKey] = useState(0); // Control re-render
+  const [cities, setCities] = useState([]); //
 
   const handleInputChange = (newInputValue) => {
     fetchOptions(newInputValue);
     setInputValue(newInputValue); // Atualiza o valor enquanto o usuário digita
   };
 
+  useEffect(() => {
+    // Assuming the API URL is '/api/cities'
+    axios
+      .get("https://api.williamvieira.tech/cidade.php")
+      .then((response) => {
+        const sortedCities = response.data.sort((a, b) => {
+          // Sort cities by the 'nome' field alphabetically
+          return a.nome.localeCompare(b.nome);
+        });
+        setCities(sortedCities); // Save the fetched cities to state
+        setLoading(false); // Set loading to false once the data is fetched
+      })
+      .catch((error) => {
+        setError("Failed to fetch cities."); // Set an error message if the fetch fails
+        setLoading(false); // Set loading to false even if there's an error
+      });
+  }, []);
 
 
    // Handle the change of selected option
@@ -1081,7 +1099,7 @@ const handleChange = (e) => {
             onChange={handleChangeSelect} // Atualiza o estado com a opção selecionada
             options={optionsSelect} // Passa as opções para o select
             isLoading={loadingSelect} // Exibe o indicador de carregamento
-            placeholder="Digite o código da Matrícula"
+            placeholder="Digite o Código da Matrícula"
             noOptionsMessage={() => "Nenhuma opção encontrada"}
             isSearchable // Permite a busca
             getOptionLabel={(e) => `${e.label}`} // Personaliza o label exibido
@@ -1144,14 +1162,14 @@ const handleChange = (e) => {
                   name="cidade_registro"
                   value={formData.cidade_registro}
                   onChange={handleChange}
-                  
                 >
                   <option value="">Selecione a Cidade</option>
-                  <option value="Campinas">Campinas</option>
-                  <option value="Guaruja">Guaruja</option>
-                  <option value="Itapeva">Itapeva</option>
-                  <option value="São Carlos">São Carlos</option>
-                  <option value="Valinhos">Valinhos</option>
+                 {/* Map through the cities data to generate <option> elements */}
+        {cities.map((city) => (
+          <option key={city.id} value={city.nome}>
+            {city.nome}
+          </option>
+        ))}
                 </select>
                 <label htmlFor="cidade_registro">Cidade de Registro</label>
               </div>
@@ -1464,15 +1482,14 @@ const handleChange = (e) => {
     </div>
     <div className="col-md-12">
   <div className="mb-3 form-floating">
-                <input
-                  type="text"
-                  className="form-control"
-                  id="observacoes"
-                  name="observacoes"
-                  value={formData.observacoes}
-                  onChange={handleChange}
-                  placeholder="Nome Vendendor"
-                />
+  <textarea
+        className="form-control"
+        id="observacoes"
+        name="observacoes"
+        value={formData.observacoes}
+        onChange={handleChange}
+        placeholder="Observações"
+      />
                 <label htmlFor="observacoes">Observações</label>
               </div>
     </div>

@@ -73,12 +73,12 @@ function MenuDashboard() {
                         </div>
                         Locatário
                     </Link>
-                    {/* <Link to="/urbano-rural?top=true" className={isActive('/urbano-rural') ? 'active nav-link' : 'nav-link'}>
+                    <Link to="/cidades?top=true" className={isActive('/cidades') ? 'active nav-link' : 'nav-link'}>
                         <div className="sb-nav-link-icon">
-                            <FontAwesomeIcon icon={faCity} />
+                            <FontAwesomeIcon icon={faLocationDot} />
                         </div>
-                        Urbano / Rural 
-                    </Link> */}
+                        Cidades
+                    </Link>
                     {/* <Link to="/iptu-itr" className={isActive('/iptu-itr') ? 'active nav-link' : 'nav-link'}>
                         <div className="sb-nav-link-icon">
                             <FontAwesomeIcon icon={faMoneyBill} />

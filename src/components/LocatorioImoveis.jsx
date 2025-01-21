@@ -1034,7 +1034,7 @@ const handleSubmit = (e) => {
             onChange={handleChangeSelect} // Atualiza o estado com a opção selecionada
             options={optionsSelect} // Passa as opções para o select
             isLoading={loadingSelect} // Exibe o indicador de carregamento
-            placeholder="Digite o código Locatário"
+            placeholder="Digite o Código Locatário"
             noOptionsMessage={() => "Nenhuma opção encontrada"}
             isSearchable // Permite a busca
             getOptionLabel={(e) => `${e.label}`} // Personaliza o label exibido
@@ -1105,7 +1105,7 @@ const handleSubmit = (e) => {
 
   <div className="row">
     <div className="col-md-4">
-        <div className="form-floating">
+        <div className="mb-3 form-floating">
         <InputMask
              mask="99/99/9999"
              value={formData.data_inicio_string}
@@ -1116,7 +1116,6 @@ const handleSubmit = (e) => {
              id="data_inicio_string"
              name="data_inicio_string"
              required
-             
            />
       <label htmlFor="data_inicio_string">Data Início</label>
       {
@@ -1138,7 +1137,6 @@ const handleSubmit = (e) => {
              id="data_fim_string"
              name="data_fim_string"
              required
-             
            />
                    <label htmlFor="data_fim_string">Data Fim </label>
                    {
