@@ -1,0 +1,11 @@
+{
+    "firebaseConfig": {
+      "apiKey": "AIzaSyB-AeNTP02F4962DmhD0LB7hxOBP8DJslA",
+      "authDomain": "web-app-226e2.firebaseapp.com",
+      "projectId": "web-app-226e2",
+      "storageBucket": "web-app-226e2.firebasestorage.app",
+      "messagingSenderId": "190857860344",
+      "appId": "1:190857860344:web:ae2049ddc0c5c40e18970d",
+      "vapidKey": "BNsTn7Hyyw6FOXrXG6_Lc--OOOd9-5WxXsGE7xdH40ny_ijpInBpjccD0W8bBQps3DP5O3C7GKAsvNqFVv8h1WM"
+    }
+  }
