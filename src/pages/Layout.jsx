@@ -13,7 +13,9 @@ function Layout() {
   }
 
   if (account && !whiteList.includes(location.pathname)) {
+
     return <Navigate to="/protected" />;
+    
   }
 
   return (

@@ -4,6 +4,7 @@ import { faRightToBracket, faEnvelope } from '@fortawesome/free-solid-svg-icons'
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Alert, Spinner } from "react-bootstrap";
+import logEvent from '../logEvent';
 
 function LoginCustomer() {
 
@@ -45,10 +46,24 @@ function LoginCustomer() {
       axios.post("https://api.williamvieira.tech/login.php", { email, password })
       .then((response) => {
         if (response.data.success) {
-          // Armazenar token no localStorage ou sessionStorage
+          
           localStorage.setItem("authToken", response.data);
+          localStorage.setItem("id", response.data.id);
           localStorage.setItem("fullname", response.data.fullname);
-          setTimeout(() => navigate("/matriculas-de-imoveis"), 1000);
+          localStorage.setItem("perfil", response.data.perfil);
+          localStorage.setItem("permissoesMatricula", response.data.permissoesMatricula);
+
+          
+  const fullname = localStorage.getItem("fullname");
+  const module = 'login';
+  const module_id = "";
+  const user_id = localStorage.getItem("id");
+  const user_name = fullname;
+  var event = 'login';
+  var logText = 'efetuou o login';
+  logEvent("login", "login", "", user_id, user_name, fullname + " " + logText, "", null);
+          
+          setTimeout(() => navigate("/dashboard"), 1000);
         } else {
           setAlertMessage('Credenciais inválidas.'); // Mensagem de sucesso
           setAlertVariant("danger"); // Tipo de alerta
@@ -84,7 +99,7 @@ function LoginCustomer() {
               <div className="col-lg-5">
                 <div className="card shadow-lg border-0 rounded-lg mt-5">
                   <div className="card-header padding-15 text-center">
-                    <img src="https://gruposerbom.com.br/wp-content/uploads/elementor/thumbs/Logo-Grupo-Serbom-per6qbsxueuf8h0iiocnzd70s31osvp3jd4u2p5se8.webp" alt="Logo" />
+                    <img src="https://williamvieira.tech/LogoVRi-sem-fundo.png" alt="Logo" className="img-file" />
                   </div>
                   <div className="card-body">
                     <h3 className="text-left font-weight-light">Login</h3>

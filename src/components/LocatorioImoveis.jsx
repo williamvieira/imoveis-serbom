@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback   } from "react";
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 // Certifique-se de carregar o módulo de exportação
@@ -10,16 +10,50 @@ import InputMask from "react-input-mask";  // Importando a biblioteca de máscar
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Select from 'react-select'; // Importando o react-select
 import { CopyToClipboard } from 'react-copy-to-clipboard';
-import { faCopy, faPrint, faFilePdf, faSearch, faPlus, faFilter, faRightToBracket, faEnvelope, faFileExcel, faCheck, faFloppyDisk, faTrash, faPenToSquare, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faCopy, faPrint, faFilePdf, faSearch, faPlus, faFilter, faRightToBracket, faEnvelope, faFileExcel, faCheck, faFloppyDisk, faTrash, faPenToSquare, faXmark, faFileCsv } from '@fortawesome/free-solid-svg-icons';
 import { jsPDF } from "jspdf"; // Importa o jsPDF
 import "jspdf-autotable"; // Importa o plugin autotable
 import { Alert } from "react-bootstrap";
 import MaskedInput from 'react-text-mask';
 import axios from "axios";
+import logEvent from '../logEvent';
+import GED from "./GED";
+import debounce from 'lodash.debounce';
+import { zip } from "lodash";
+import { useLocation } from "react-router-dom";
 
 const LocatorioImoveis = () => {
+
+
+  const locationLog = useLocation();
+  
+  const fullname = localStorage.getItem("fullname");
+const module = 'locatarios';
+  const module_id = "";
+  const user_id = localStorage.getItem("id");
+  const user_name = fullname;
+  var event = 'view';
+  var logText = 'visualizou a página ' + location.pathname;
+  
+  // Função para obter o horário atual formatado
+  const getCurrentTime = () => new Date().toLocaleString();
+  
+  useEffect(() => {
+    const lastLogTime = localStorage.getItem('lastLogTime');
+    const currentTime = getCurrentTime();
+  
+    // Se o horário for diferente, registre o evento
+    if (lastLogTime !== currentTime) {
+      logEvent("view", module, "", user_id, user_name, fullname + " " + logText, "", null);
+      localStorage.setItem('lastLogTime', currentTime); // Atualiza o horário registrado
+    }
+  }, []); // Array de dependências vazio para executar uma vez ao montar o componente
+
+
   const [formData, setFormData] = useState({
     nomeLocatario: '',
+    date_insert : '',
+    id : '',
     cpfCnpjLocatario: '',
     apelidoLocatario: '',
     nomeContato1: '',
@@ -44,11 +78,46 @@ const LocatorioImoveis = () => {
     cpf: "",
     cnpj: "",
     razao_social: "",
-    tipo_pessoa: "",
+    tipo_pessoa: "física",
     data_fim_string : "",
     data_inicio_string : "",
     matriculasSelecionadas: []
   });
+
+      const [keyGED, setKeyGED] = useState(0);
+  const [dataHistory, setDataHistory] = useState([]);
+
+  const fetchDataHistory = async (id) => {
+    try {
+      const response = await axios.get('https://api.williamvieira.tech/get_arquivos.php?module_id=' + id); // Replace with your API
+      if (Array.isArray(response.data)) {
+        setDataHistory(response.data);
+      } else {
+        console.error('Expected an array but got:', response.data);
+        setDataHistory([]);
+      }
+    } catch (error) {
+      console.error('Error fetching data history:', error);
+    }
+  };
+
+  const formatDateToBR = (dateString) => {
+    const date = new Date(dateString);
+  
+    // Use toLocaleString to format the date in Brazilian format
+    const options = {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false, // 24-hour time format
+    };
+  
+    return date.toLocaleString('pt-BR', options).replace(',', ''); ;
+  };
+
 
    // Validate the date
    const validateDate = (date) => {
@@ -246,39 +315,118 @@ const LocatorioImoveis = () => {
   };
 
 
+  
   const handleCopy = () => {
-    // Copiar todos os dados da tabela
-    const tableData = data.map(row => {
-      return Object.values(row).join('\t');
-    }).join('\n');
+    if (data.length === 0) {
+      alert("Nenhum dado disponível para copiar!");
+      return;
+    }
+  
+    // Função para remover "R$" e formatar valores
+    const formatCurrency = (value) => {
+      if (typeof value === "string") {
+        return value.replace(/R\$\s?/g, "");
+      }
+      return value;
+    };
+  
+    // Extrair o cabeçalho baseado no nome das colunas
+    const header = columns
+      .filter((col) => col.name) // Ignora colunas sem nome
+      .map((col) => col.name)
+      .join("\t"); // Junta os nomes das colunas com tabulação
+  
+    // Extrair os dados das linhas
+    const tableData = data
+      .map((row) => {
+        return columns
+          .filter((col) => col.name) // Ignora colunas sem nome
+          .map((col) => {
+            if (col.selector) {
+              let value = col.selector(row);
+  
+              // Formatar valores das colunas específicas
+              if (["Valor Compra Escritura", "Valor Compra Contrato"].includes(col.name)) {
+                value = formatCurrency(value);
+              }
+  
+              return value;
+            }
+            return "";
+          })
+          .join("\t"); // Junta os valores de cada linha com tabulação
+      })
+      .join("\n"); // Junta as linhas com uma nova linha
+  
+    // Combina cabeçalho e dados das linhas
+    const fullData = `${header}\n${tableData}`;
   
     // Copiar para a área de transferência
-    navigator.clipboard.writeText(tableData).then(() => {
-      setShowModalCopy(true);
-    });
+    navigator.clipboard
+      .writeText(fullData)
+      .then(() => {
+        const fullname = localStorage.getItem("fullname");
+        const event = 'copy';
+        const module = 'locatarios';
+        const user_id = localStorage.getItem("id");
+        const user_name = fullname;
+        logEvent(event, module, module_id, user_id, user_name, fullname + " copiou os dados em Locatários", null, null);
+        setShowModalCopy(true); // Exibir modal de confirmação
+      })
+      .catch((err) => {
+        console.error("Falha ao copiar os dados: ", err);
+        alert("Falha ao copiar os dados para a área de transferência!");
+      });
   };
   
 
-    // Função para lidar com a mudança no campo de busca
-    const handleSearchChange = (e) => {
-      setSearchTerm(e.target.value);
-    };
-  
+// Função para alterar a pesquisa
+const handleSearchChange = (e) => {
+  setSearchTerm(e.target.value);
+  handleSearchMatriculas(e.target.value);
+};
 
-  
-      // Array de matrículas (simulando a tabela de matrículas)
-      const matriculas = [
-        { id: 1, nome: "MT367 - Apelido 3" },
-        { id: 2, nome: "MT361 - Apelido 2" },
-        { id: 3, nome: "MT363 - Apelido 3" },
-        { id: 4, nome: "MT365 - Apelido 4" },
-        { id: 5, nome: "MT364 - Apelido 5" },
-        { id: 6, nome: "MT368 - Apelido 6" },
-        { id: 7, nome: "MT369 - Apelido 7" },
-        { id: 8, nome: "MT360 - Apelido 3" },
-      ];
-  // Estado para o campo de busca
-  const [searchTerm, setSearchTerm] = useState("");
+// Estado de pesquisa
+const [searchTerm, setSearchTerm] = useState("");
+
+// Função para buscar as matrículas
+const handleSearchMatriculas = async (value) => {
+  try {
+    const response = await fetch(`https://api.williamvieira.tech/get_matriculas.php?search_value=${value}`);
+    const data = await response.json();
+    if (data) {
+      setMatriculasData(data);
+    } else {
+      gridMatriculas(); // Função que deve ser chamada quando não houver dados para exibir
+    }
+  } catch (error) {
+    console.error("Erro ao buscar as matrículas:", error);
+    // Aqui poderia adicionar um tratamento de erro visual, como uma mensagem de erro para o usuário
+  }
+};
+
+// Filtra e ordena matrículas
+const filterAndSortMatriculas = () => {
+  // Filtra matrículas baseadas no termo de pesquisa
+  const filteredMatriculas = matriculasData.filter(matricula =>
+    matricula.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Se a pesquisa estiver vazia, mostrar apenas as matrículas selecionadas inicialmente
+  if (searchTerm === "") {
+    // Mostrar somente as matrículas selecionadas
+    return filteredMatriculas.filter(matricula => formData.matriculasSelecionadas.includes(matricula.id));
+  } else {
+    // Separar as matrículas selecionadas e não selecionadas
+    const selectedMatriculas = filteredMatriculas.filter(matricula => formData.matriculasSelecionadas.includes(matricula.id));
+    const unselectedMatriculas = filteredMatriculas.filter(matricula => !formData.matriculasSelecionadas.includes(matricula.id));
+
+    // Ordenar as matrículas selecionadas no topo e exibir as não selecionadas depois
+    return [...selectedMatriculas, ...unselectedMatriculas];
+  }
+};
+
+
 
 
 
@@ -294,6 +442,7 @@ const LocatorioImoveis = () => {
   const [alertVariant, setAlertVariant] = useState("success"); 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [deletingIdName, setDeletingIdName] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const errorRef = useRef(null);
   const editRef = useRef(null); 
@@ -328,6 +477,7 @@ const LocatorioImoveis = () => {
   
 
   const handleEdit = (row) => {
+    fetchOptions('');
     setIsVisibleAdd(true);
     const matriculasSelecionadas = row.matriculasSelecionadas; // A string que você tem
     const arrayMatriculas = JSON.parse(matriculasSelecionadas);
@@ -341,6 +491,7 @@ const LocatorioImoveis = () => {
     console.log(formData);
     editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     clearValid();
+    fetchDataHistory(row.cod_locatario);
   };
 
   function clearValid() {
@@ -394,9 +545,10 @@ function validarEmail(email) {
   }
 
     // Filtrar as matrículas com base no termo de busca
-    const filteredMatriculas = matriculasData.filter((matricula) =>
-      matricula.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+ 
+     
+    
+   
   
   const addIMovel = () => {
 
@@ -405,6 +557,8 @@ function validarEmail(email) {
     reloadForm();
     setFormData({
       nomeLocatario: '',
+      date_insert : '',
+      id : '',
       cpfCnpjLocatario: '',
       apelidoLocatario: '',
       nomeContato1: '',
@@ -520,6 +674,8 @@ function validarEmail(email) {
     }));
     handleSearch1(selectedOption.value);
   };
+
+  
   
 
 const handleSearch1 = async (cod_locatario) => {
@@ -534,6 +690,7 @@ const handleSearch1 = async (cod_locatario) => {
         ...data,
         matriculasSelecionadas: arrayMatriculas
       });
+      setTipoPessoa(data.tipo_pessoa);
       setIsVisibleAdd(true);
       setIsEditing(true);
       setEditingId(data.id);
@@ -572,13 +729,51 @@ const handleSubmitSearch = (e) => {
     });
 };
 
-const handleChangeForm = (e) => {
-  const { name, value } = e.target;
-  setFormData({
-    ...formData,
-    [name]: value,
-  });
-};
+// const handleChangeForm = (e) => {
+//   const { name, value } = e.target;
+//   setFormData({
+//     ...formData,
+//     [name]: value,
+//   });
+// };
+
+ // Função para atualizar o estado de 'formData' enquanto o usuário digita
+    const handleChangeForm = (e) => {
+      const { name, value } = e.target;
+      setFormData((prevData) => ({
+        ...prevData,
+        [name]: value,
+      }));
+  
+      // Chama a função debounced para pesquisar após digitar
+      debouncedSearch(value);
+    };
+
+    const searchApi = async (searchValue) => {
+      setLoading(true);
+  
+      const searchParams = new URLSearchParams({ search_value: searchValue });
+      const url = `https://api.williamvieira.tech/locatorio.php?${searchParams.toString()}`;
+  
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        setData(data); // Atualiza os dados
+      } catch (error) {
+        console.error('Erro ao buscar dados: ', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    // Criação do debounce para a função de busca
+    const debouncedSearch = useCallback(
+      debounce((searchValue) => {
+        searchApi(searchValue); // Chama a função de busca com o valor
+      }, 500), // Delay de 500ms
+      []
+    );
+
 
 
 
@@ -597,13 +792,11 @@ const handleSubmit = (e) => {
     
   e.preventDefault();
 
-
-
   if(!formData.matriculasSelecionadas.length > 0) {
     setShowModalCod(true);
     return;
   }
-
+  
   const method = isEditing ? 'PUT' : 'POST';
   const url = isEditing ? `https://api.williamvieira.tech/locatorio.php?id=${editingId}` : 'https://api.williamvieira.tech/locatorio.php';
   
@@ -614,22 +807,42 @@ const handleSubmit = (e) => {
   })
   .then((response) => response.json())
   .then((data) => {
-    console.log(data);
-    setAlertMessage(data.message); // Mensagem de sucesso
-    setAlertVariant("success"); // Tipo de alerta
-    setShowAlert(true);
-    reloadGrid();
-  })
-  .catch((error) => {
-    //console.log(error);
-    setAlertMessage('Erro ao salvar o imóvel'); // Mensagem de sucesso
-    setAlertVariant("danger"); // Tipo de alerta
-    setShowAlert(true);
+    if(data.message) {
+      setAlertMessage(data.message); // Mensagem de sucesso
+      setAlertVariant("success"); // Tipo de alerta
+      setShowAlert(true);
+      reloadGrid();
+      if (method === 'POST') {
+        const fullname = localStorage.getItem("fullname");
+        const event = 'insert';
+      const module = 'locatarios';
+        const module_id = "US" + data.id;
+        const user_id = localStorage.getItem("id");
+        const user_name = fullname;
+        setKeyGED((prevKey) => prevKey + 1); // Alterando a chave para forçar a renderização
+        logEvent(event, module, module_id, user_id, user_name, fullname + " cadastrou o Locatário - " + module_id, formData.apelidoLocatario, formData.matriculasSelecionadas);
+      } else {
+        const fullname = localStorage.getItem("fullname");
+        const event = 'edit';
+      const module = 'locatarios';
+        const module_id = formData.cod_locatario;
+        const user_id = localStorage.getItem("id");
+        const user_name = fullname;
+        logEvent(event, module, module_id, user_id, user_name, fullname + " alterou o Locatário - " + module_id, formData.apelidoLocatario, formData.matriculasSelecionadas);
+      }
+      setTimeout(() =>  fetchDataHistory(module_id), 1000);
+    } else {
+      setAlertMessage('Erro ao salvar o imóvel'); // Mensagem de sucesso
+      setAlertVariant("danger"); // Tipo de alerta
+      setShowAlert(true);
+    }
   });
   editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
   if (method === 'POST') {
   setFormData({
     nomeLocatario: '',
+    date_insert : '',
+    id : '',
     cpfCnpjLocatario: '',
     apelidoLocatario: '',
     nomeContato1: '',
@@ -661,9 +874,16 @@ const handleSubmit = (e) => {
   });
   reloadForm();
   setIsEditing(false);
+
+
 } else {
+  
   setIsEditing(true);
+ 
 }
+
+
+
  
 
 };
@@ -724,7 +944,14 @@ const handleSubmit = (e) => {
         setAlertVariant("success"); // Tipo de alerta
         setShowAlert(true);
         setShowDeleteModal(false);
+        const fullname = localStorage.getItem("fullname");
+        const event = 'delete';
+      const module = 'locatarios';
+        const user_id = localStorage.getItem("id");
+        const user_name = fullname;
+        logEvent(event, module, module_id, user_id, user_name, fullname + " deletou o Locatário - " + deletingIdName, formData.apelidoLocatario, formData.matriculasSelecionadas);
         editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setKeyGED((prevKey) => prevKey + 1); // Alterando a chave para forçar a renderização
       });
   };
 
@@ -734,13 +961,97 @@ const handleSubmit = (e) => {
     gridMatriculas();
   }, []);
 
-    const handleExport = () => {
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Imóveis");
-        XLSX.writeFile(wb, "imoveis.xlsx");
-      };
 
+    const handleExport = () => {
+  
+      try {
+    
+        if (!data || data.length === 0) {
+          console.warn("Nenhum dado disponível para exportação.");
+          return;
+        }
+    
+        // Filtra colunas que não sejam ações (removendo aquelas que possuem 'cell')
+        const exportColumns = columns.filter((col) => !col.cell);
+    
+        // Função para remover "R$" e formatar valores corretamente
+        const formatCurrency = (value) => {
+          if (typeof value === "string") {
+            return value.replace(/R\$\s?/g, "").trim();
+          }
+          return value;
+        };
+    
+        // Função para converter datas de DD/MM/YYYY para YYYY-MM-DD (formato do Excel)
+        const formatDateForCSV = (value) => {
+          if (typeof value === "string" && value.includes("/")) {
+            const parts = value.split("/");
+            if (parts.length === 3) {
+              const [day, month, year] = parts;
+              return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+            }
+          }
+          return value;
+        };
+    
+        // Mapeia os dados para corresponder aos nomes das colunas filtradas
+        const exportData = data.map((row) => {
+          return exportColumns.reduce((acc, col) => {
+            if (col.name) {
+              let value =
+                typeof col.selector === "function"
+                  ? col.selector(row)
+                  : row[col.selector] || "";
+    
+              // Aplicar formatação para valores monetários e datas
+              if (["Valor"].includes(col.name)) {
+                value = formatCurrency(value);
+              } else if (["Data"].includes(col.name)) {
+                value = formatDateForCSV(value);
+              }
+  
+    
+    
+              acc[col.name] = value;
+            }
+            return acc;
+          }, {});
+        });
+    
+        // Cria a planilha com os dados processados
+        const ws = XLSX.utils.json_to_sheet(exportData, { 
+          header: exportColumns.map((col) => col.name) 
+        });
+    
+        // Converte para CSV com BOM UTF-8 para manter acentos
+        const csvOutput = "\uFEFF" + XLSX.utils.sheet_to_csv(ws, { FS: ";" });
+    
+        // Cria um blob para download do CSV
+        const blob = new Blob([csvOutput], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+    
+        // Cria e dispara o download do arquivo CSV
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `locatarios.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        const fullname = localStorage.getItem("fullname");
+        const event = 'export';
+        const module = 'locatario';
+        const user_id = localStorage.getItem("id");
+        const user_name = fullname;
+        logEvent(event, module, module_id, user_id, user_name, fullname + " fez uma exportação CSV dos dados em Locatários", null, null);
+    
+        console.log("Exportação CSV concluída com sucesso!");
+      } catch (error) {
+        console.error("Erro ao exportar CSV:", error);
+      }
+    
+    };
+  
   const customStyles = {
     rows: {
       style: {
@@ -759,7 +1070,7 @@ const handleSubmit = (e) => {
   }
 
 
-  const logoUrl = 'https://imoveis.williamvieira.tech/teste.png';  // Image is inside the 'public' folder
+  const logoUrl = 'https://imoveis.williamvieira.tech/LogoVRi-sem-fundo.png';  // Image is inside the 'public' folder
   const generatePDF = () => {
     const doc = new jsPDF();
   
@@ -782,7 +1093,7 @@ const handleSubmit = (e) => {
       // Título em formato normal e fonte maior
       doc.setFont("Arial", "bold");
       doc.setFontSize(14); // Aumenta o tamanho do título para destacá-lo
-      doc.text('Grupo Serbom - Locatário', 105, 25, { align: 'center' });
+      doc.text('VRI - Locatário', 105, 25, { align: 'center' });
   
       // Adicionar nome do usuário em negrito e fonte menor
       const userName = localStorage.getItem('fullname'); // Exemplo de nome do usuário
@@ -813,6 +1124,7 @@ const handleSubmit = (e) => {
       };
   
       Object.entries(formData).forEach(([key, value]) => {
+
         doc.setFont("Arial", "bold");
         doc.text(`${formatKey(key)}:`, 20, yOffset); // Chave formatada
   
@@ -829,11 +1141,27 @@ const handleSubmit = (e) => {
       });
   
       // Salvar o PDF gerado
-      doc.save('Serbom Matrículas de Imóveis ' + formData.cod_matricula + ' - ' + formData.apelido);
+      doc.save('VRI Locatário ' + formData.cod_matricula + ' - ' + formData.apelido);
     };
   
     // Definir a URL da imagem (isto dispara o carregamento da imagem)
     img.src = logoUrl;
+  };
+
+
+  // Função para formatar o valor com ponto para milhar e 3 casas decimais
+  const formatValue = (val) => {
+    // Remove tudo que não for número
+    let cleanValue = val.replace(/\D/g, '');
+    
+    // Adiciona a vírgula para as casas decimais
+    if (cleanValue) {
+      cleanValue = (parseInt(cleanValue, 10) / 100).toFixed(3);
+    }
+
+    return cleanValue
+      .replace(/\B(?=(\d{3})+(?!\d))/g, '.') // Ponto para milhar
+      .replace('.', ','); // Vírgula como separador decimal
   };
   
 
@@ -852,14 +1180,14 @@ const handleSubmit = (e) => {
       name: "",
       cell: (row) => (
         <div>
-          <button className="btn btn-danger btn-sm" onClick={() => { setDeletingId(row.id); setShowDeleteModal(true); }}> <FontAwesomeIcon icon={faTrash} /> Excluir</button>
+          <button className="btn btn-danger btn-sm" onClick={() => { setDeletingIdName(row.id); setDeletingIdName(row.cod); setShowDeleteModal(true); }}> <FontAwesomeIcon icon={faTrash} /> Excluir</button>
         </div>
       ),
       width: "125px" // Define a largura da primeira coluna
     },
     { name: "Cod Locatário", selector: (row) => row.cod_locatario, sortable: true },
+    { name: "Matrículas ", selector: (row) => row.matriculasSelecionadas, sortable: true },
     { name: "Nome Locatário", selector: (row) => row.nomeLocatario, sortable: true },
-    { name: "CPF/CNPJ Locatário", selector: (row) => row.cpfCnpjLocatario, sortable: true },
     { name: "Apelido Locatário", selector: (row) => row.apelidoLocatario, sortable: true },
     { name: "Nome Contato 1", selector: (row) => row.nomeContato1, sortable: true },
     { name: "Celular Contato 1", selector: (row) => row.celularContato1, sortable: true },
@@ -893,7 +1221,7 @@ const handleSubmit = (e) => {
             <h1 ref={editRef}  className="mt-4">
             <img 
               className="icone-title-serbom" 
-              src="https://gruposerbom.com.br/wp-content/uploads/2021/10/icone_gruposerbom.png" 
+              src="https://williamvieira.tech/LogoVRi-sem-fundo.png" 
               alt="Ícone Grupo Serbom" 
             /> Locatário
           </h1>
@@ -919,11 +1247,12 @@ const handleSubmit = (e) => {
          
 
 
+
         <div className="card shadow-lg border-0 rounded-lg mt-20">
           <div className="card-body">
         {isVisible && (
-        <div className="card card-search">
-        <div className="card-body">
+        <div className="card card-search"  style={{ width: '100%' }}>
+        <div className="card-body" >
           <form onSubmit={handleSubmitSearch}>
             <div className="row">
               <div className="col-md-12" >
@@ -942,12 +1271,12 @@ const handleSubmit = (e) => {
             
             <div className="btn btn-light btn-clear mt-3" onClick={toggleVisibility}>
                
-               <FontAwesomeIcon icon={faXmark} /> Limpar
+               <FontAwesomeIcon icon={faXmark} /> Cancelar
            
             </div>
-            <button type="submit" className="btn btn-primary mt-3">
+            {/* <button type="submit" className="btn btn-primary mt-3">
               <FontAwesomeIcon icon={faSearch} /> Buscar
-            </button>
+            </button> */}
             </div>
             
           </form>
@@ -955,17 +1284,17 @@ const handleSubmit = (e) => {
       </div>
       )}
 
-      {loading && <p className="pleft">Carregando dados...</p>}
+      {loading && <p className="pleft">Carregando...</p>}
 
  
- {data.length > 0 && (
-       <button className="btn btn-dark mb-3 btnExport" onClick={handleExport}> <FontAwesomeIcon icon={faFileExcel} /> Excel</button>
+ {data.length > 0 &&  (
+       <button className="btn btn-dark mb-3 btnExport" onClick={handleExport}> <FontAwesomeIcon icon={faFileCsv} /> CSV</button>
        )}
-        {data.length > 0 && (
+        {data.length > 0 &&  (
       <button className="btn btn-dark mb-3  btn-info-grid" onClick={handleCopy}>  <FontAwesomeIcon icon={faCopy} /> Copiar</button>
      )}
  
- {data.length > 0 && (
+ {data.length > 0 && !isVisible > 0 && (
            <button className="btn btn-secondary mb-3 btn-info-grid" onClick={toggleVisibility}> <FontAwesomeIcon icon={faFilter} /> Filtrar </button>
          )}
  
@@ -1049,15 +1378,17 @@ const handleSubmit = (e) => {
           <div className="col-md-4">
           {isVisibleAdd && (
               <div type="submit" onClick={addIMovel} className="btn btn-light btn-relative">
-                  <FontAwesomeIcon icon={faXmark} /> Limpar
+                  <FontAwesomeIcon icon={faXmark} /> Cancelar
                 </div>
             )}
           </div>
           <div className="col-md-4">
-            {isEditing ? <div className="btn btn-dark mb-3 btn-ged" onClick={generatePDF}><FontAwesomeIcon icon={faFilePdf}></FontAwesomeIcon> GED</div> : ''  }
+            {isEditing ? (<GED register_id={"US" + editingId} />) : ('')}  
+            {/* <GED key={keyGED}  register_id={"US" + editingId} /> */}
           </div>
         </div>
         <hr className="my-4"></hr>
+        
       <form onSubmit={handleSubmit}>
       <div className="row">
   {/* Matrícula */}
@@ -1115,7 +1446,7 @@ const handleSubmit = (e) => {
              className={`form-control ${errorDataInicio ? 'is-invalid' : ''}`}
              id="data_inicio_string"
              name="data_inicio_string"
-             required
+             
            />
       <label htmlFor="data_inicio_string">Data Início</label>
       {
@@ -1136,7 +1467,7 @@ const handleSubmit = (e) => {
              className={`form-control ${errorDataFim ? 'is-invalid' : ''}`}
              id="data_fim_string"
              name="data_fim_string"
-             required
+             
            />
                    <label htmlFor="data_fim_string">Data Fim </label>
                    {
@@ -1506,36 +1837,35 @@ const handleSubmit = (e) => {
 
 
 
-        <div className="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4">
-          {filteredMatriculas.length > 0 ? (
-           
-            filteredMatriculas.map((matricula) => (
-              
-              <div key={matricula.id} className="col mb-3">
-                <div className="form-check">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    id={`matricula-${matricula.id}`}
-                    checked={formData.matriculasSelecionadas.includes(matricula.id)}
-                    onChange={() => handleCheckboxChange(matricula.id)}
-                  />
-                  <label className="form-check-label" htmlFor={`matricula-${matricula.id}`}>
-                    {matricula.name}
-                  </label>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="row">
-              <div className="col-md-12">
-              <p className="ft12">Nenhuma matrícula encontrada.</p>
-              </div>
+  <div className="row">
+    {matriculasData.length > 0 ? (
+      filterAndSortMatriculas() // Chama a função para filtrar e ordenar as matrículas
+        .slice(0, 12) // Limita a exibição a 12 itens
+        .map((matricula) => (
+          <div key={matricula.id} className="col-md-3 mb-3">
+            <div className="form-check">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id={`matricula-${matricula.id}`}
+                checked={formData.matriculasSelecionadas.includes(matricula.id)} // Verifica se a matrícula está selecionada
+                onChange={() => handleCheckboxChange(matricula.id)} // Chama a função para tratar a mudança no checkbox
+              />
+              <label className="form-check-label" htmlFor={`matricula-${matricula.id}`}>
+                {matricula.name}
+              </label>
             </div>
-           
-          )}
           </div>
-          </div>
+        ))
+    ) : (
+      <div className="row">
+        <div className="col-md-12">
+          <p className="ft12">Nenhuma matrícula encontrada.</p>
+        </div>
+      </div>
+    )}
+  </div>
+  </div>
 
 {/* Add more rows for other sections if necessary */}
 
@@ -1550,11 +1880,83 @@ const handleSubmit = (e) => {
 </div>
      
     </div>
+
+    {isEditing ? (
+<div className="card shadow-lg border-0 rounded-lg mt-4 mt-20">
+<div className="card-body">
+<div class="tables-container">
+    
+            <div class="table-wrapper">
+           
+           <div className="div-1">
+           <h6 class="text-center border p-2 title-grade">ATUAL</h6>
+    
+<table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Data Criação</th>
+                    <th>Código</th>
+                    <th>Apelido</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{formatDateToBR(formData.date_insert)}</td>
+                    <td>{formData.cod_locatario}</td>
+                    <td>{formData.apelidoLocatario}</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+        <div className="div-2">
+        <h6 class="text-center border p-2 title-grade">HISTÓRICO</h6>
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Data Alteração</th>
+                    <th>Código</th>
+                    <th>Apelido</th>
+                    <th>Matrículas</th>
+                    <th>Descrição</th>
+                    <th>Usuário</th>
+                </tr>
+            </thead>
+            <tbody>
+            {dataHistory.length === 0 ? (
+          <tr>
+            <td colSpan="6">Não possui dados</td>
+          </tr>
+        ) : (
+          dataHistory.map((row, index) => {
+            // Parse codigos_matricula which is a stringified array
+            const matriculas = JSON.parse(row.codigos_matricula);
+
+            return (
+              <tr key={index}> 
+                <td>{row.date}</td>
+                <td>{row.module_id}</td>
+                <td>{row.apelido}</td>
+                <td>{matriculas?.join(' | ') || ''}</td>
+                <td>{row.desc}</td>
+                <td>{row.user_name}</td>
+              </tr>
+            );
+          })
+        )}
+            </tbody>
+        </table>
+        </div>
+        </div>
+        </div>
+
+</div>
+</div>
+    ) : ''}
     
     <footer className="py-4 bg-light mt-auto footerInterno">
             <div className="container-fluid px-4">
                 <div className="text-center">
-                    <div className="text-muted text-center">© 2024 - Grupo Serbom. Todos os direitos reservados.</div>
+                    <div className="text-muted text-center">© VRI - Todos os direitos reservados.</div>
                 </div>
             </div>
         </footer>

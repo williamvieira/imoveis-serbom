@@ -1,21 +1,20 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback  } from 'react';
 import { Alert, Button } from 'react-bootstrap';
+import debounce from 'lodash.debounce';
 import axios from 'axios';
 import * as XLSX from "xlsx";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faClose, faSearch, faFilter, faCopy , faFileExcel, faPenToSquare , faFloppyDisk, faCheck, faEdit, faTrash, faXmark, faFileCsv  } from '@fortawesome/free-solid-svg-icons';
+import { faClose , faSearch, faFilter, faCopy , faFileExcel, faPenToSquare , faFloppyDisk, faCheck, faEdit, faTrash, faXmark, faFileCsv  } from '@fortawesome/free-solid-svg-icons';
 import DataTable from "react-data-table-component";
 import logEvent from '../logEvent';
-import debounce from 'lodash.debounce';
 import { useLocation } from "react-router-dom";
 
-const MainDashboard = () => {
+const Cartorios = () => {
 
-    
   const locationLog = useLocation();
   
   const fullname = localStorage.getItem("fullname");
-  const module = 'matriculas';
+  const module = 'cartorios';
   const module_id = "";
   const user_id = localStorage.getItem("id");
   const user_name = fullname;
@@ -37,7 +36,6 @@ const MainDashboard = () => {
   }, []); // Array de dependências vazio para executar uma vez ao montar o componente
 
 
-
   const [formData, setFormData] = useState({ cidade: '' });
   const [alertMessage, setAlertMessage] = useState('');
   const [alertVariant, setAlertVariant] = useState("success");
@@ -48,13 +46,12 @@ const MainDashboard = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [deletingName, setDeletingName] = useState(null);
-  const [showModalCopy, setShowModalCopy] = useState(false);
+const [showModalCopy, setShowModalCopy] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isVisibleAdd, setIsVisibleAdd] = useState(false);
   const editRef = useRef(null); 
 
-  
-
+    
 
   useEffect(() => {
     reloadCidades();
@@ -69,7 +66,7 @@ const handleSubmitSearch = (e) => {
   setLoading(true);
 
   const searchParams = new URLSearchParams(formData);
-  const url = `https://api.williamvieira.tech/api-logs.php?${searchParams.toString()}`;
+  const url = `https://api.williamvieira.tech/cartorio.php?${searchParams.toString()}`;
   
   fetch(url)
     .then((response) => response.json())
@@ -93,17 +90,6 @@ const handleSubmitSearch = (e) => {
   }, [isTopParam]); // Re-run if the query parameter changes
 
 
-const addIMovel = () => {
-
-  setIsVisibleAdd(false);
-  setIsEditing(false);
-  reloadCidades();
-  setFormData({
-    cidade: "",
-  });
-  editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-};
 
  const handleChangeForm = (e) => {
     const { name, value } = e.target;
@@ -120,7 +106,7 @@ const addIMovel = () => {
     setLoading(true);
 
     const searchParams = new URLSearchParams({ search_value: searchValue });
-    const url = `https://api.williamvieira.tech/api-logs.php?${searchParams.toString()}`;
+    const url = `https://api.williamvieira.tech/cartorio.php?${searchParams.toString()}`;
 
     try {
       const response = await fetch(url);
@@ -142,8 +128,8 @@ const addIMovel = () => {
         []
       );
   
-  
 
+  
   const toggleVisibility = () => {
     setIsVisible(!isVisible);
     if(isVisible == true) {
@@ -209,8 +195,7 @@ const handleCopy = () => {
       alert("Falha ao copiar os dados para a área de transferência!");
     });
 };
-
-
+ 
 const handleExport = () => {
   try {
     if (!cidades || cidades.length === 0) {
@@ -294,7 +279,7 @@ const handleExport = () => {
     // Cria e dispara o download do arquivo CSV
     const a = document.createElement("a");
     a.href = url;
-    a.download = "logs.csv";
+    a.download = "cartorios.csv";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -305,11 +290,10 @@ const handleExport = () => {
   }
 };
 
-
   const reloadCidades = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('https://api.williamvieira.tech/api-logs.php');
+      const response = await axios.get('https://api.williamvieira.tech/cartorio.php');
       setCidades(response.data);
     } catch (error) {
       setAlertMessage("Erro ao carregar as cidades.");
@@ -325,11 +309,20 @@ const handleExport = () => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSubmit = async (e) => {
+  const addIMovel = () => {
 
+    setIsVisibleAdd(false);
+    setIsEditing(false);
+    reloadCidades();
+    setFormData({
+      cidade: "",
+    });
     editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    e.preventDefault();
+  
+  };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     if (!formData.cidade.trim()) {
       setAlertMessage("A cidade não pode estar vazia!");
       setAlertVariant("danger");
@@ -338,39 +331,39 @@ const handleExport = () => {
     }
 
     setLoading(true);
-
     try {
       if (isEditing) {
-        await axios.put(`https://api.williamvieira.tech/api-logs.php?id=${formData.id}&cidade=${formData.cidade}`);
-        setAlertMessage("Cidade atualizada com sucesso!");
+        await axios.put(`https://api.williamvieira.tech/cartorio.php?id=${formData.id}&cartorios=${formData.cidade}`);
+        setAlertMessage("Cartório atualizado com sucesso!");
       } else {
-        await axios.post('https://api.williamvieira.tech/api-logs.php?cidade=' + formData.cidade);
-        setAlertMessage("Cidade cadastrada com sucesso!");
+        await axios.post('https://api.williamvieira.tech/cartorio.php?cartorios=' + formData.cidade);
+        setAlertMessage("Cartório cadastrado com sucesso!");
       }
       setAlertVariant("success");
       setShowAlert(true);
-     
+      reloadCidades();
     } catch (error) {
-      setAlertMessage("Erro ao salvar ou cidade já existe.");
+      setAlertMessage("Erro ao salvar ou Cartório já existe.");
       setAlertVariant("danger");
       setShowAlert(true);
     } finally {
       setLoading(false);
     }
+    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
 
     const fullname = localStorage.getItem("fullname");
-    const module = 'cidades';
+    const module = 'cartorios';
     const module_id = "";
     const user_id = localStorage.getItem("id");
     const user_name = fullname;
     var event = 'add';
-    var logText = 'adicionou a cidade ' + formData.cidade;
+    var logText = 'adicionou o cartório ' + formData.cidade;
     if(isEditing) {
         var event = 'edit';
-        var logText = 'editou a cidade ' + formData.cidade;
+        var logText = 'editou o cartório ' + formData.cidade;
     } else {
       setIsEditing(false);
-      setFormData({ cidade: '' });
     }
 
     reloadCidades();
@@ -381,16 +374,16 @@ const handleExport = () => {
 
   const handleEdit = (cidade) => {
     setIsVisibleAdd(true);
-    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setIsEditing(true);
     setFormData({ id: cidade.id, cidade: cidade.nome });
+    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const handleDelete = async () => {
       try {
-
-        await axios.delete(`https://api.williamvieira.tech/api-logs.php?id=${deletingId}`);
-        setAlertMessage("Cidade excluída com sucesso!");
+        await axios.delete(`https://api.williamvieira.tech/cartorio.php?id=${deletingId}`);
+        setShowAlert(true);
+        setAlertMessage("Cartório excluído com sucesso!");
         setAlertVariant("success");
         setShowDeleteModal(false);
         reloadCidades();
@@ -401,24 +394,42 @@ const handleExport = () => {
         const user_id = localStorage.getItem("id");
         const user_name = fullname;
         var event = 'delete';
-        var logText = 'excluiu a cidade ' + deletingName;
+        var logText = 'excluiu o cartório ' + deletingName;
 
         logEvent(event, module, module_id, user_id, user_name, fullname + " " + logText, formData.apelido, formData.matriculasSelecionadas);
         
+        
       } catch (error) {
-
-        setAlertMessage("Erro ao excluir a cidade.");
+        setAlertMessage("Erro ao excluir o cartório.");
         setAlertVariant("danger");
         setShowDeleteModal(false);
-
       }
     
   };
 
   const columns = [
-    { name: "Data", selector: (row) => row.date || "", sortable: true },
-    { name: "Log", selector: (row) => row.desc || "", sortable: true }
+ {
+      cell: (row) => (
+        <div>
+          <button className="btn btn-info btn-sm mr-15" onClick={() => handleEdit(row)}>
+            <FontAwesomeIcon icon={faPenToSquare} /> Editar
+          </button>
+        </div>
+      ),
+      width: "125px" // Define a largura da primeira coluna
+    },
+    {
+      name: "",
+      cell: (row) => (
+        <div>
+          <button className="btn btn-danger btn-sm" onClick={() => { setDeletingId(row.id); setDeletingName(row.nome); setShowDeleteModal(true); }}> <FontAwesomeIcon icon={faTrash} /> Excluir</button>
+        </div>
+      ),
+      width: "125px" // Define a largura da primeira coluna
+    },
+    { name: "Cartórios", selector: (row) => row.nome, sortable: true }
   ];
+  
 
   
 
@@ -432,7 +443,7 @@ const handleExport = () => {
               className="icone-title-serbom" 
               src="https://williamvieira.tech/LogoVRi-sem-fundo.png" 
               alt="Ícone Grupo Serbom" 
-            /> Logs - Atividades
+            /> Cartórios
           </h1>
             </div>
            
@@ -448,8 +459,9 @@ const handleExport = () => {
         <div className="card-body">
 
         {isVisible && (
-        <div className="card card-search"  style={{ width: '100%' }}>
+        <div className="card card-search" style={{ width: '100%' }}>
         <div className="card-body">
+           
           <form onSubmit={handleSubmitSearch}>
             <div className="row">
               <div className="col-md-12" >
@@ -495,15 +507,15 @@ const handleExport = () => {
                   <button className="btn btn-dark mb-3  btn-info-grid" onClick={handleCopy}>  <FontAwesomeIcon icon={faCopy} /> Copiar</button>
                  )}
              
-             {cidades.length > 0 && !isVisible && (
+               {cidades.length > 0 && !isVisible && (
                        <button className="btn btn-secondary mb-3 btn-info-grid" onClick={toggleVisibility}> <FontAwesomeIcon icon={faFilter} /> Filtrar </button>
                      )}
              <DataTable
       columns={columns}
       data={cidades}
       pagination
-      paginationPerPage={10}
-      paginationRowsPerPageOptions={[10, 25, 50]}
+      paginationPerPage={5}
+      paginationRowsPerPageOptions={[5, 10, 50]}
       paginationText="Exibindo registros de"
       noDataComponent="Não há registros para exibir"
       customStyles={{
@@ -542,7 +554,42 @@ const handleExport = () => {
         </div>
       </div>
 
-  
+      <div className="card shadow-lg border-0 rounded-lg mt-4">
+        <div className="card-body">
+          <div className="row">
+            <div className="col-md-12">
+            {isVisibleAdd && (
+                        <button type="submit" onClick={addIMovel} className="btn btn-light btn-relative-default">
+                            <FontAwesomeIcon icon={faClose} /> Cancelar
+                          </button>
+                      )}
+            </div>
+          </div>
+      
+          <form onSubmit={handleSubmit}>
+            <div className="mb-3 form-floating">
+              <input
+                type="text"
+                className="form-control"
+                id="cidade"
+                name="cidade"
+                value={formData.cidade}
+                onChange={handleInputChange}
+                placeholder="Digite a cidade"
+                required
+              />
+              <label htmlFor="cidade">Cartório <span className="text-danger">*</span></label>
+            </div>
+
+            <div className="text-center">
+              <Button variant="success" type="submit">
+                {isEditing ? <FontAwesomeIcon icon={faFloppyDisk} /> : <FontAwesomeIcon icon={faCheck} />} {isEditing ? 'Salvar' : 'Cadastrar'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+
      
     </div>
       <footer className="py-4 bg-light mt-auto footerInterno">
@@ -595,4 +642,4 @@ const handleExport = () => {
   );
 };
 
-export default MainDashboard;
+export default Cartorios;

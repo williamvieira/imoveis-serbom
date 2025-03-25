@@ -9,13 +9,14 @@ import logEvent from '../logEvent';
 import debounce from 'lodash.debounce';
 import { useLocation } from "react-router-dom";
 
-const MainDashboard = () => {
 
-    
+const Local = () => {
+
+
   const locationLog = useLocation();
   
   const fullname = localStorage.getItem("fullname");
-  const module = 'matriculas';
+  const module = 'local';
   const module_id = "";
   const user_id = localStorage.getItem("id");
   const user_name = fullname;
@@ -36,14 +37,12 @@ const MainDashboard = () => {
     }
   }, []); // Array de dependências vazio para executar uma vez ao montar o componente
 
-
-
   const [formData, setFormData] = useState({ cidade: '' });
   const [alertMessage, setAlertMessage] = useState('');
   const [alertVariant, setAlertVariant] = useState("success");
   const [showAlert, setShowAlert] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [cidades, setCidades] = useState([]);
+  const [Local, setLocal] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -53,15 +52,12 @@ const MainDashboard = () => {
   const [isVisibleAdd, setIsVisibleAdd] = useState(false);
   const editRef = useRef(null); 
 
-  
-
-
   useEffect(() => {
-    reloadCidades();
+
+    reloadLocal();
+
   }, []);
 
-
-  
   // Handle form submit to fetch data
 const handleSubmitSearch = (e) => {
 
@@ -69,12 +65,12 @@ const handleSubmitSearch = (e) => {
   setLoading(true);
 
   const searchParams = new URLSearchParams(formData);
-  const url = `https://api.williamvieira.tech/api-logs.php?${searchParams.toString()}`;
+  const url = `https://api.williamvieira.tech/local.php?${searchParams.toString()}`;
   
   fetch(url)
     .then((response) => response.json())
     .then((data) => {
-      setCidades(data); // Update the DataTable with the fetched data
+      setLocal(data); // Update the DataTable with the fetched data
       setLoading(false);
     })
     .catch((error) => {
@@ -85,27 +81,8 @@ const handleSubmitSearch = (e) => {
 };
 
 
-  const isTopParam = new URLSearchParams(location.search).get('top') === 'true';
-  useEffect(() => {
-    if (isTopParam) {
-      editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [isTopParam]); // Re-run if the query parameter changes
 
-
-const addIMovel = () => {
-
-  setIsVisibleAdd(false);
-  setIsEditing(false);
-  reloadCidades();
-  setFormData({
-    cidade: "",
-  });
-  editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-};
-
- const handleChangeForm = (e) => {
+const handleChangeForm = (e) => {
     const { name, value } = e.target;
     setFormData((prevData) => ({
       ...prevData,
@@ -120,13 +97,13 @@ const addIMovel = () => {
     setLoading(true);
 
     const searchParams = new URLSearchParams({ search_value: searchValue });
-    const url = `https://api.williamvieira.tech/api-logs.php?${searchParams.toString()}`;
+    const url = `https://api.williamvieira.tech/local.php?${searchParams.toString()}`;
 
     try {
       const response = await fetch(url);
       const data = await response.json();
       console.log(data);
-      setCidades(data); // Atualiza os dados
+      setLocal(data); // Atualiza os dados
     } catch (error) {
       console.error('Erro ao buscar dados: ', error);
     } finally {
@@ -143,18 +120,16 @@ const addIMovel = () => {
       );
   
   
-
   const toggleVisibility = () => {
     setIsVisible(!isVisible);
     if(isVisible == true) {
-      reloadCidades();
+      reloadLocal();
       formData.search_value = "";
     }
 };
 
-
 const handleCopy = () => {
-  if (cidades.length === 0) {
+  if (Local.length === 0) {
     alert("Nenhum dado disponível para copiar!");
     return;
   }
@@ -174,7 +149,7 @@ const handleCopy = () => {
     .join("\t"); // Junta os nomes das colunas com tabulação
 
   // Extrair os dados das linhas
-  const tableData = cidades
+  const tableData = Local
     .map((row) => {
       return columns
         .filter((col) => col.name) // Ignora colunas sem nome
@@ -211,9 +186,10 @@ const handleCopy = () => {
 };
 
 
+ 
 const handleExport = () => {
   try {
-    if (!cidades || cidades.length === 0) {
+    if (!Local || Local.length === 0) {
       console.warn("Nenhum dado disponível para exportação.");
       return;
     }
@@ -249,7 +225,7 @@ const handleExport = () => {
 
     // Função para aplicar a formatação adequada nos valores
     const formatValue = (value, columnName) => {
-      if (typeof value === 'string' && (columnName.includes("Data") || columnName.includes("Data de"))) {
+      if (typeof value === 'string' && (columnName.includes("Data") || columnName.includes("Data"))) {
         return formatDate(value); // Formata como data
       } else if (!isNaN(value)) {
         return formatNumber(value); // Formata como número
@@ -258,7 +234,7 @@ const handleExport = () => {
     };
 
     // Mapeia os dados para corresponder aos nomes das colunas filtradas
-    const exportData = cidades.map((row) => {
+    const exportData = Local.map((row) => {
       return exportColumns.reduce((acc, col) => {
         if (col.name) {
           let value =
@@ -294,7 +270,7 @@ const handleExport = () => {
     // Cria e dispara o download do arquivo CSV
     const a = document.createElement("a");
     a.href = url;
-    a.download = "logs.csv";
+    a.download = "local.csv";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -306,13 +282,13 @@ const handleExport = () => {
 };
 
 
-  const reloadCidades = async () => {
+  const reloadLocal = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('https://api.williamvieira.tech/api-logs.php');
-      setCidades(response.data);
+      const response = await axios.get('https://api.williamvieira.tech/local.php');
+      setLocal(response.data);
     } catch (error) {
-      setAlertMessage("Erro ao carregar as cidades.");
+      setAlertMessage("Erro ao carregar as Local.");
       setAlertVariant("danger");
       setShowAlert(true);
     } finally {
@@ -325,13 +301,21 @@ const handleExport = () => {
     setFormData({ ...formData, [name]: value });
   };
 
+
+    const isTopParam = new URLSearchParams(location.search).get('top') === 'true';
+    useEffect(() => {
+      if (isTopParam) {
+        editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, [isTopParam]); // Re-run if the query parameter changes
+  
+
   const handleSubmit = async (e) => {
 
-    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     e.preventDefault();
 
     if (!formData.cidade.trim()) {
-      setAlertMessage("A cidade não pode estar vazia!");
+      setAlertMessage("A Local não pode estar vazia!");
       setAlertVariant("danger");
       setShowAlert(true);
       return;
@@ -340,18 +324,19 @@ const handleExport = () => {
     setLoading(true);
 
     try {
+
       if (isEditing) {
-        await axios.put(`https://api.williamvieira.tech/api-logs.php?id=${formData.id}&cidade=${formData.cidade}`);
-        setAlertMessage("Cidade atualizada com sucesso!");
+        await axios.put(`https://api.williamvieira.tech/local.php?id=${formData.id}&cidade=${formData.cidade}`);
+        setAlertMessage("Local atualizado com sucesso!");
       } else {
-        await axios.post('https://api.williamvieira.tech/api-logs.php?cidade=' + formData.cidade);
-        setAlertMessage("Cidade cadastrada com sucesso!");
+        await axios.post('https://api.williamvieira.tech/local.php?cidade=' + formData.cidade);
+        setAlertMessage("Local cadastrado com sucesso!");
       }
       setAlertVariant("success");
       setShowAlert(true);
-     
+
     } catch (error) {
-      setAlertMessage("Erro ao salvar ou cidade já existe.");
+      setAlertMessage("Erro ao salvar ou Local já existe.");
       setAlertVariant("danger");
       setShowAlert(true);
     } finally {
@@ -359,41 +344,60 @@ const handleExport = () => {
     }
 
     const fullname = localStorage.getItem("fullname");
-    const module = 'cidades';
+    const module = 'local';
     const module_id = "";
     const user_id = localStorage.getItem("id");
     const user_name = fullname;
     var event = 'add';
-    var logText = 'adicionou a cidade ' + formData.cidade;
+    var logText = 'adicionou o local ' + formData.cidade;
+
     if(isEditing) {
+
         var event = 'edit';
-        var logText = 'editou a cidade ' + formData.cidade;
+        var logText = 'editou o local ' + formData.cidade;
+
     } else {
+
       setIsEditing(false);
       setFormData({ cidade: '' });
+
     }
 
-    reloadCidades();
+    reloadLocal();
 
     logEvent(event, module, module_id, user_id, user_name, fullname + " " + logText, formData.apelido, formData.matriculasSelecionadas);
+
+    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
   };
 
   const handleEdit = (cidade) => {
-    setIsVisibleAdd(true);
-    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setIsEditing(true);
+    setIsVisibleAdd(true);
     setFormData({ id: cidade.id, cidade: cidade.nome });
+    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const addIMovel = () => {
+
+    setIsVisibleAdd(false);
+    setIsEditing(false);
+    reloadLocal();
+    setFormData({
+      cidade: "",
+    });
+    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  
   };
 
   const handleDelete = async () => {
       try {
-
-        await axios.delete(`https://api.williamvieira.tech/api-logs.php?id=${deletingId}`);
-        setAlertMessage("Cidade excluída com sucesso!");
+        await axios.delete(`https://api.williamvieira.tech/local.php?id=${deletingId}`);
+        setAlertMessage("Local excluído com sucesso!");
+        setShowAlert(true);
         setAlertVariant("success");
         setShowDeleteModal(false);
-        reloadCidades();
+        reloadLocal();
 
         const fullname = localStorage.getItem("fullname");
         const module = 'cidades';
@@ -401,24 +405,42 @@ const handleExport = () => {
         const user_id = localStorage.getItem("id");
         const user_name = fullname;
         var event = 'delete';
-        var logText = 'excluiu a cidade ' + deletingName;
+        var logText = 'excluiu o local ' + deletingName;
 
         logEvent(event, module, module_id, user_id, user_name, fullname + " " + logText, formData.apelido, formData.matriculasSelecionadas);
         
       } catch (error) {
-
-        setAlertMessage("Erro ao excluir a cidade.");
+        setShowAlert(true);
+        setAlertMessage("Erro ao excluir o Local.");
         setAlertVariant("danger");
         setShowDeleteModal(false);
-
       }
     
   };
 
   const columns = [
-    { name: "Data", selector: (row) => row.date || "", sortable: true },
-    { name: "Log", selector: (row) => row.desc || "", sortable: true }
+ {
+      cell: (row) => (
+        <div>
+          <button className="btn btn-info btn-sm mr-15" onClick={() => handleEdit(row)}>
+            <FontAwesomeIcon icon={faPenToSquare} /> Editar
+          </button>
+        </div>
+      ),
+      width: "125px" // Define a largura da primeira coluna
+    },
+    {
+      name: "",
+      cell: (row) => (
+        <div>
+          <button className="btn btn-danger btn-sm" onClick={() => { setDeletingId(row.id); setDeletingName(row.nome); setShowDeleteModal(true); }}> <FontAwesomeIcon icon={faTrash} /> Excluir</button>
+        </div>
+      ),
+      width: "125px" // Define a largura da primeira coluna
+    },
+    { name: "Local", selector: (row) => row.nome, sortable: true }
   ];
+  
 
   
 
@@ -432,7 +454,7 @@ const handleExport = () => {
               className="icone-title-serbom" 
               src="https://williamvieira.tech/LogoVRi-sem-fundo.png" 
               alt="Ícone Grupo Serbom" 
-            /> Logs - Atividades
+            /> Local
           </h1>
             </div>
            
@@ -444,11 +466,11 @@ const handleExport = () => {
         </Alert>
       )}
 
-<div className="card shadow-lg border-0 rounded-lg ">
+<div className="card shadow-lg border-0 rounded-lg " >
         <div className="card-body">
 
         {isVisible && (
-        <div className="card card-search"  style={{ width: '100%' }}>
+        <div className="card card-search" style={{ width: '100%' }}>
         <div className="card-body">
           <form onSubmit={handleSubmitSearch}>
             <div className="row">
@@ -488,22 +510,22 @@ const handleExport = () => {
 
             
 
-             {cidades.length > 0 && (
+             {Local.length > 0 && (
                    <button className="btn btn-dark mb-3 btnExport" onClick={handleExport}> <FontAwesomeIcon icon={faFileCsv} /> CSV</button>
                    )}
-                    {cidades.length > 0 && (
+                    {Local.length > 0 && (
                   <button className="btn btn-dark mb-3  btn-info-grid" onClick={handleCopy}>  <FontAwesomeIcon icon={faCopy} /> Copiar</button>
                  )}
              
-             {cidades.length > 0 && !isVisible && (
+             {Local.length > 0 && !isVisible && (
                        <button className="btn btn-secondary mb-3 btn-info-grid" onClick={toggleVisibility}> <FontAwesomeIcon icon={faFilter} /> Filtrar </button>
                      )}
              <DataTable
       columns={columns}
-      data={cidades}
+      data={Local}
       pagination
-      paginationPerPage={10}
-      paginationRowsPerPageOptions={[10, 25, 50]}
+      paginationPerPage={5}
+      paginationRowsPerPageOptions={[5, 10, 50]}
       paginationText="Exibindo registros de"
       noDataComponent="Não há registros para exibir"
       customStyles={{
@@ -542,7 +564,41 @@ const handleExport = () => {
         </div>
       </div>
 
-  
+      <div className="card shadow-lg border-0 rounded-lg mt-4">
+        <div className="card-body">
+           <div className="row">
+                      <div className="col-md-12">
+                      {isVisibleAdd && (
+                                  <button type="submit" onClick={addIMovel} className="btn btn-light btn-relative-default">
+                                      <FontAwesomeIcon icon={faClose} /> Cancelar
+                                    </button>
+                                )}
+                      </div>
+                    </div>
+          <form onSubmit={handleSubmit}>
+            <div className="mb-3 form-floating">
+              <input
+                type="text"
+                className="form-control"
+                id="cidade"
+                name="cidade"
+                value={formData.cidade}
+                onChange={handleInputChange}
+                placeholder="Digite a cidade"
+                required
+              />
+              <label htmlFor="cidade">Local <span className="text-danger">*</span></label>
+            </div>
+
+            <div className="text-center">
+              <Button variant="success" type="submit">
+                {isEditing ? <FontAwesomeIcon icon={faFloppyDisk} /> : <FontAwesomeIcon icon={faCheck} />} {isEditing ? 'Salvar' : 'Cadastrar'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+
      
     </div>
       <footer className="py-4 bg-light mt-auto footerInterno">
@@ -595,4 +651,4 @@ const handleExport = () => {
   );
 };
 
-export default MainDashboard;
+export default Local;

@@ -64,7 +64,7 @@ function Mensagem() {
       <main>
         <div className="container-fluid px-4">
           <h1 className="mt-4">
-            <img className="icone-title-serbom" src="https://gruposerbom.com.br/wp-content/uploads/2021/10/icone_gruposerbom.png" alt="" /> Mensagens
+            <img className="icone-title-serbom" src="https://williamvieira.tech/LogoVRi-sem-fundo.png" alt="" /> Mensagens
           </h1>
 
           {/* Exibe o alerta com bordas arredondadas */}

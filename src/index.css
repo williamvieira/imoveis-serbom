@@ -148,6 +148,10 @@
   display: none
 }
 
+.rounded-circle {
+  border-radius: 0.375rem!important;
+}
+
 .none {
   display: none!important
 }
@@ -196,6 +200,20 @@
   bottom: 23px;
   right: 15px;
   font-size: 12px
+}
+
+.select-multi > .form-control svg {
+  top: 0px!important;
+  right: 20px!important;
+  z-index: 99999999999999!important;
+}
+
+.none {
+  display: none
+}
+
+.sb-nav-fixed .sb-topnav {
+  z-index: 99999999999999999999!important;
 }
 
 .form-control .css-13cymwt-control,
@@ -250,6 +268,37 @@ footer.footerInterno {
   background-color: rgba(0, 0, 0, 0.8);
 }
 
+.title-grade {
+  margin-bottom: 0px!important;
+  border-bottom: 0px!important;
+}
+
+.tables-container {
+  display: flex; /* Exibe as tabelas lado a lado */
+  overflow-x: auto; /* Adiciona scroll horizontal se necessário */
+}
+.table-wrapper {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-right: 0px;
+  width: 100%;
+  display: flex;
+  white-space: nowrap; /* Impede a quebra de linha nas células da tabela */
+}
+th, td {
+  white-space: nowrap; /* Impede que o conteúdo quebre linha nas células */
+}
+
+.modal {
+  z-index: 999999999;
+}
+
+
+
+
+table {
+  width: 100%; /* Garante que as tabelas ocupem toda a largura disponível */
+}
 /* #cidade_registro {
   margin: 0;
   padding: 0;
@@ -274,8 +323,30 @@ select.form-control {
   padding-top: 12px!important;
 }
 
+.modal {
+  background-color: rgba(0, 0, 0, 0.8);
+  z-index: 99999999999999999 !important;
+}
+
 .form-control {
   padding-top: 30px!important;
+}
+
+.r15 {
+  margin-right: 15px
+}
+
+.btn-ged {
+  position: relative;
+  top: 10px;
+  float: right;
+  margin-left: 15px;
+  right: 0px
+}
+
+.padding-10 {
+  padding-top: 10px!important;
+  padding: 10px !important;
 }
 
 .mtb-2rem {
@@ -4244,6 +4315,8 @@ textarea.form-control-lg {
   .navbar-expand-sm .navbar-toggler {
     display: none;
   }
+
+
   .navbar-expand-sm .offcanvas {
     position: static;
     z-index: auto;
@@ -4277,6 +4350,8 @@ textarea.form-control-lg {
   .navbar-expand-md .navbar-nav .dropdown-menu {
     position: absolute;
   }
+  
+
   .navbar-expand-md .navbar-nav .nav-link {
     padding-right: var(--bs-navbar-nav-link-padding-x);
     padding-left: var(--bs-navbar-nav-link-padding-x);
@@ -8628,9 +8703,8 @@ textarea.form-control-lg {
 }
 
 .rounded-circle {
-  border-radius: 50% !important;
+  border-radius: 0.375rem!important;
 }
-
 .rounded-pill {
   border-radius: var(--bs-border-radius-pill) !important;
 }
@@ -11637,15 +11711,21 @@ body {
 
 
 .icone-title-serbom {
-  width: 50px;
-  top: -10px;
+  width: 80px;
+  top: -1px;
   position: relative;
+  display: none;
 }
 
 .menu-icone {
   position: relative;
-  top: -4px!important;
-  width: 25px!important;
+  top: 2px;
+  width: 70px !important;
+}
+
+.div-logo {
+  background: #fff;
+  width: 70px;
 }
 
 .sb-topnav.navbar-dark #sidebarToggle {
@@ -11672,9 +11752,25 @@ body {
   text-decoration: underline;
 }
 
+.img-file {
+  width: 100px
+}
+
+
+
 @media (max-width: 768px) {
   #exit {
     display: inline-flex
+  }
+
+  .App {
+    margin-left: -15px;
+    padding-left: 0px;
+    float: left;
+  }
+  
+  .select-complete {
+    margin-bottom: 20px;
   }
 
   .btn-ged {
@@ -11688,7 +11784,13 @@ body {
     top: 0px;
     float: right;
     margin-bottom: 0px;
-    margin-top: 15px;
+    margin-top: 0px;
+}
+
+
+
+.lb-r {
+  margin-top: 30px;
 }
 
 .card-search {

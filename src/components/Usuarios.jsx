@@ -1,18 +1,46 @@
-import React, { useState, useEffect, useRef, errorRef, editRef  } from "react";
+import React, { useState, useEffect, useRef, errorRef, editRef, useCallback  } from "react";
 import DataTable from "react-data-table-component";
 import * as XLSX from "xlsx";
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCopy, faClose, faFloppyDisk, faPlus, faPenToSquare, faTrash, faCheck, faFileExcel, faFilter, faXmark, faSearch } from '@fortawesome/free-solid-svg-icons';
+import { faCopy, faClose, faFloppyDisk, faPlus, faPenToSquare, faTrash, faCheck, faFileExcel, faFilter, faXmark, faSearch, faFileCsv } from '@fortawesome/free-solid-svg-icons';
 import { Alert } from "react-bootstrap";
 import { CurrencyInput } from 'react-currency-mask';
-import InputMask from "react-input-mask";  // Importando a biblioteca de máscara
+import InputMask from "react-input-mask";  
+import logEvent from '../logEvent';
+import debounce from 'lodash.debounce';
+import { useLocation } from "react-router-dom";
 
 
 const initialData = [];
 
-
 const Usuarios = () => {
+
+
+  const locationLog = useLocation();
+  
+  const fullname = localStorage.getItem("fullname");
+  const module = 'usuarios';
+  const module_id = "";
+  const user_id = localStorage.getItem("id");
+  const user_name = fullname;
+  var event = 'view';
+  var logText = 'visualizou a página ' + location.pathname;
+  
+  // Função para obter o horário atual formatado
+  const getCurrentTime = () => new Date().toLocaleString();
+  
+  useEffect(() => {
+    const lastLogTime = localStorage.getItem('lastLogTime');
+    const currentTime = getCurrentTime();
+  
+    // Se o horário for diferente, registre o evento
+    if (lastLogTime !== currentTime) {
+      logEvent("view", module, "", user_id, user_name, fullname + " " + logText, "", null);
+      localStorage.setItem('lastLogTime', currentTime); // Atualiza o horário registrado
+    }
+  }, []); // Array de dependências vazio para executar uma vez ao montar o componente
+
   const [users, setUsers] = useState([]);
   const [formData, setFormData] = useState({
     email: "",
@@ -34,16 +62,63 @@ const Usuarios = () => {
   };
 
   const handleCopy = () => {
-    // Copiar todos os dados da tabela
-    const tableData = data.map(row => {
-      return Object.values(row).join('\t');
-    }).join('\n');
+    if (data.length === 0) {
+      alert("Nenhum dado disponível para copiar!");
+      return;
+    }
+  
+    // Função para remover "R$" e formatar valores
+    const formatCurrency = (value) => {
+      if (typeof value === "string") {
+        return value.replace(/R\$\s?/g, "");
+      }
+      return value;
+    };
+  
+    // Extrair o cabeçalho baseado no nome das colunas
+    const header = columns
+      .filter((col) => col.name) // Ignora colunas sem nome
+      .map((col) => col.name)
+      .join("\t"); // Junta os nomes das colunas com tabulação
+  
+    // Extrair os dados das linhas
+    const tableData = data
+      .map((row) => {
+        return columns
+          .filter((col) => col.name) // Ignora colunas sem nome
+          .map((col) => {
+            if (col.selector) {
+              let value = col.selector(row);
+  
+              // Formatar valores das colunas específicas
+              if (["Valor Compra Escritura", "Valor Compra Contrato"].includes(col.name)) {
+                value = formatCurrency(value);
+              }
+  
+              return value;
+            }
+            return "";
+          })
+          .join("\t"); // Junta os valores de cada linha com tabulação
+      })
+      .join("\n"); // Junta as linhas com uma nova linha
+  
+    // Combina cabeçalho e dados das linhas
+    const fullData = `${header}\n${tableData}`;
   
     // Copiar para a área de transferência
-    navigator.clipboard.writeText(tableData).then(() => {
-      setShowModalCopy(true);
-    });
+    navigator.clipboard
+      .writeText(fullData)
+      .then(() => {
+        setShowModalCopy(true); // Exibir modal de confirmação
+      })
+      .catch((err) => {
+        console.error("Falha ao copiar os dados: ", err);
+        alert("Falha ao copiar os dados para a área de transferência!");
+      });
   };
+
+  
   
 
   
@@ -86,12 +161,89 @@ function validarEmail(email) {
       reloadGrid();
     }, []);
 
-     const handleExport = () => {
-            const ws = XLSX.utils.json_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Imóveis");
-            XLSX.writeFile(wb, "imoveis.xlsx");
-          };
+  const handleExport = () => {
+
+    try {
+  
+      if (!data || data.length === 0) {
+        console.warn("Nenhum dado disponível para exportação.");
+        return;
+      }
+  
+      // Filtra colunas que não sejam ações (removendo aquelas que possuem 'cell')
+      const exportColumns = columns.filter((col) => !col.cell);
+  
+      // Função para remover "R$" e formatar valores corretamente
+      const formatCurrency = (value) => {
+        if (typeof value === "string") {
+          return value.replace(/R\$\s?/g, "").trim();
+        }
+        return value;
+      };
+  
+      // Função para converter datas de DD/MM/YYYY para YYYY-MM-DD (formato do Excel)
+      const formatDateForCSV = (value) => {
+        if (typeof value === "string" && value.includes("/")) {
+          const parts = value.split("/");
+          if (parts.length === 3) {
+            const [day, month, year] = parts;
+            return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+          }
+        }
+        return value;
+      };
+  
+      // Mapeia os dados para corresponder aos nomes das colunas filtradas
+      const exportData = data.map((row) => {
+        return exportColumns.reduce((acc, col) => {
+          if (col.name) {
+            let value =
+              typeof col.selector === "function"
+                ? col.selector(row)
+                : row[col.selector] || "";
+  
+            // Aplicar formatação para valores monetários e datas
+            if (["Valor"].includes(col.name)) {
+              value = formatCurrency(value);
+            } else if (["Data"].includes(col.name)) {
+              value = formatDateForCSV(value);
+            }
+
+  
+  
+            acc[col.name] = value;
+          }
+          return acc;
+        }, {});
+      });
+  
+      // Cria a planilha com os dados processados
+      const ws = XLSX.utils.json_to_sheet(exportData, { 
+        header: exportColumns.map((col) => col.name) 
+      });
+  
+      // Converte para CSV com BOM UTF-8 para manter acentos
+      const csvOutput = "\uFEFF" + XLSX.utils.sheet_to_csv(ws, { FS: ";" });
+  
+      // Cria um blob para download do CSV
+      const blob = new Blob([csvOutput], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+  
+      // Cria e dispara o download do arquivo CSV
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `usuarios.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+  
+      console.log("Exportação CSV concluída com sucesso!");
+    } catch (error) {
+      console.error("Erro ao exportar CSV:", error);
+    }
+  
+  };
+   
 
           const toggleVisibility = () => {
             setIsVisible(!isVisible);
@@ -201,13 +353,44 @@ const handleSubmitSearch = (e) => {
     });
 };
 
-const handleChangeForm = (e) => {
-  const { name, value } = e.target;
-  setFormData({
-    ...formData,
-    [name]: value,
-  });
-};
+
+ const handleChangeForm = (e) => {
+    const { name, value } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: value,
+    }));
+
+    // Chama a função debounced para pesquisar após digitar
+    debouncedSearch(value);
+  };
+
+  const searchApi = async (searchValue) => {
+    setLoading(true);
+
+    const searchParams = new URLSearchParams({ search_value: searchValue });
+    const url = `https://api.williamvieira.tech/users.php?${searchParams.toString()}`;
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      console.log(data);
+      setData(data); // Atualiza os dados
+    } catch (error) {
+      console.error('Erro ao buscar dados: ', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+   // Criação do debounce para a função de busca
+      const debouncedSearch = useCallback(
+        debounce((searchValue) => {
+          searchApi(searchValue); // Chama a função de busca com o valor
+        }, 500), // Delay de 500ms
+        []
+      );
+  
       
 
 const isTopParam = new URLSearchParams(location.search).get('top') === 'true';
@@ -234,16 +417,24 @@ useEffect(() => {
     })
     .then((response) => response.json())
     .then((data) => {
+      if(data.success) {
+        setAlertMessage(data.message); // Mensagem de sucesso
+        setAlertVariant("success"); // Tipo de alerta
+        setShowAlert(true);
+        reloadGrid();
+      } else {
+        setAlertMessage(data.message); // Mensagem de sucesso
+        setAlertVariant("danger"); // Tipo de alerta
+        setShowAlert(true);
+        reloadGrid();
+      }
       //console.log(data.sql);
-      setAlertMessage(data.message); // Mensagem de sucesso
-      setAlertVariant("success"); // Tipo de alerta
-      setShowAlert(true);
-      reloadGrid();
+     
       //console.log(formData);
     })
     .catch((error) => {
       //console.log(error);
-      setAlertMessage('Erro ao salvar o imóvel'); // Mensagem de sucesso
+      setAlertMessage('Erro ao salvar o usuário'); // Mensagem de sucesso
       setAlertVariant("danger"); // Tipo de alerta
       setShowAlert(true);
     });
@@ -295,10 +486,10 @@ useEffect(() => {
    <div className="container-fluid px-4">
           <div className="row">
             <div className="col-md-6" ref={errorRef}>
-            <h1   className="mt-4">
+            <h1  ref={editRef}   className="mt-4">
             <img 
               className="icone-title-serbom" 
-              src="https://gruposerbom.com.br/wp-content/uploads/2021/10/icone_gruposerbom.png" 
+              src="https://williamvieira.tech/LogoVRi-sem-fundo.png" 
               alt="Ícone Grupo Serbom" 
             /> Usuários
           </h1>
@@ -332,7 +523,7 @@ useEffect(() => {
 
           
         {isVisible && (
-        <div className="card card-search">
+        <div className="card card-search"  style={{ width: '100%' }}>
         <div className="card-body">
           <form onSubmit={handleSubmitSearch}>
             <div className="row">
@@ -350,14 +541,14 @@ useEffect(() => {
             </div>
             <div className="text-left">
             
-            <div className="btn btn-secondary btn-clear mt-3" onClick={toggleVisibility}>
+            <div className="btn btn-light btn-clear mt-3" onClick={toggleVisibility}>
                
-               <FontAwesomeIcon icon={faXmark} /> Limpar
+               <FontAwesomeIcon icon={faXmark} /> Cancelar
            
             </div>
-            <button type="submit" className="btn btn-info mt-3">
+            {/* <button type="submit" className="btn btn-primary mt-3">
               <FontAwesomeIcon icon={faSearch} /> Buscar
-            </button>
+            </button> */}
             </div>
             
           </form>
@@ -368,14 +559,14 @@ useEffect(() => {
       {loading && <p className="pleft">Carregando dados...</p>}
 
       {data.length > 0 && (
-      <button className="btn btn-dark mb-3 btnExport" onClick={handleExport}> <FontAwesomeIcon icon={faFileExcel} /> Excel</button>
+      <button className="btn btn-dark mb-3 btnExport" onClick={handleExport}> <FontAwesomeIcon icon={faFileCsv} /> CSV</button>
       )}
 
        {data.length > 0 && (
             <button className="btn btn-dark mb-3  btn-info-grid" onClick={handleCopy}>  <FontAwesomeIcon icon={faCopy} /> Copiar</button>
            )}
 
-  {data.length > 0 && (
+  {data.length > 0 && !isVisible && (
           <button className="btn btn-secondary mb-3 btn-info-grid" onClick={toggleVisibility}> <FontAwesomeIcon icon={faFilter} /> Filtrar </button>
         )}
 
@@ -430,13 +621,13 @@ useEffect(() => {
                     <div className="card-body">
                     {isVisibleAdd && (
               <button type="submit" onClick={addIMovel} className="btn btn-light btn-relative-default">
-                  <FontAwesomeIcon icon={faClose} /> Limpar
+                  <FontAwesomeIcon icon={faClose} /> Cancelar
                 </button>
             )}
                   
       {/* Formulário de Adição de Usuário com Floating Labels */}
       <form onSubmit={handleSubmit} className="form-float">
-      <div className="mb-3 form-floating" ref={editRef}>
+      <div className="mb-3 form-floating">
         <input
             type="text"
             className="form-control"
@@ -500,7 +691,7 @@ useEffect(() => {
                   id="permissoesMatricula"
                      name="permissoesMatricula"
                   value={formData.permissoesMatricula}
-                  checked={formData.permissoesMatricula}
+                  checked={(formData.permissoesMatricula == '1') ? true : false}
                  onChange={(e) => setFormData({ ...formData, permissoesMatricula: e.target.checked })}
                   
                 />
@@ -526,7 +717,7 @@ useEffect(() => {
         <footer className="py-4 bg-light mt-auto footerInterno">
             <div className="container-fluid px-4">
                 <div className="text-center">
-                    <div className="text-muted text-center">© 2024 - Grupo Serbom. Todos os direitos reservados.</div>
+                    <div className="text-muted text-center">© VRI - Todos os direitos reservados.</div>
                 </div>
             </div>
         </footer>
@@ -543,7 +734,7 @@ useEffect(() => {
                           Tem certeza de que deseja excluir este imóvel?
                         </div>
                         <div className="modal-footer">
-                          <button type="button" className="btn btn-secondary" onClick={() => setShowDeleteModal(false)}> <FontAwesomeIcon icon={faXmark} /> Cancelar</button>
+                          <button type="button" className="btn btn-light" onClick={() => setShowDeleteModal(false)}> <FontAwesomeIcon icon={faXmark} /> Cancelar</button>
                           <button type="button" className="btn btn-danger" onClick={handleDelete}><FontAwesomeIcon icon={faCheck} /> Excluir</button>
                         </div>
                       </div>

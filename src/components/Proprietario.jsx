@@ -3,42 +3,50 @@ import { Alert, Button } from 'react-bootstrap';
 import axios from 'axios';
 import * as XLSX from "xlsx";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faClose, faSearch, faFilter, faCopy , faFileExcel, faPenToSquare , faFloppyDisk, faCheck, faEdit, faTrash, faXmark, faFileCsv  } from '@fortawesome/free-solid-svg-icons';
+import {faClose , faSearch, faFilter, faCopy , faFileExcel, faPenToSquare , faFloppyDisk, faCheck, faEdit, faTrash, faXmark, faFileCsv  } from '@fortawesome/free-solid-svg-icons';
 import DataTable from "react-data-table-component";
+import InputMask from "react-input-mask";
 import logEvent from '../logEvent';
 import debounce from 'lodash.debounce';
 import { useLocation } from "react-router-dom";
 
-const MainDashboard = () => {
+const Proprietario = () => {
+ 
 
-    
   const locationLog = useLocation();
-  
-  const fullname = localStorage.getItem("fullname");
-  const module = 'matriculas';
-  const module_id = "";
-  const user_id = localStorage.getItem("id");
-  const user_name = fullname;
-  var event = 'view';
-  var logText = 'visualizou a página ' + location.pathname;
-  
-  // Função para obter o horário atual formatado
-  const getCurrentTime = () => new Date().toLocaleString();
-  
-  useEffect(() => {
-    const lastLogTime = localStorage.getItem('lastLogTime');
-    const currentTime = getCurrentTime();
-  
-    // Se o horário for diferente, registre o evento
-    if (lastLogTime !== currentTime) {
-      logEvent("view", module, "", user_id, user_name, fullname + " " + logText, "", null);
-      localStorage.setItem('lastLogTime', currentTime); // Atualiza o horário registrado
-    }
-  }, []); // Array de dependências vazio para executar uma vez ao montar o componente
+
+const fullname = localStorage.getItem("fullname");
+const module = 'proprietarios';
+const module_id = "";
+const user_id = localStorage.getItem("id");
+const user_name = fullname;
+var event = 'add';
+var logText = 'visualizou a página ' + location.pathname;
+
+// Função para obter o horário atual formatado
+const getCurrentTime = () => new Date().toLocaleString();
+
+useEffect(() => {
+  const lastLogTime = localStorage.getItem('lastLogTime');
+  const currentTime = getCurrentTime();
+
+  // Se o horário for diferente, registre o evento
+  if (lastLogTime !== currentTime) {
+    logEvent("view", "Proprietarios", "", user_id, user_name, fullname + " " + logText, "", null);
+    localStorage.setItem('lastLogTime', currentTime); // Atualiza o horário registrado
+  }
+}, []); // Array de dependências vazio para executar uma vez ao montar o componente
 
 
-
-  const [formData, setFormData] = useState({ cidade: '' });
+  const [formData, setFormData] = useState({
+    id: "",
+    tipo_pessoa: "física",
+    nome: "",
+    nome_proprietario_grupo: "",
+    cpf: '',
+    cnpj: '',
+    razao_social: ''
+  });
   const [alertMessage, setAlertMessage] = useState('');
   const [alertVariant, setAlertVariant] = useState("success");
   const [showAlert, setShowAlert] = useState(false);
@@ -48,18 +56,111 @@ const MainDashboard = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [deletingName, setDeletingName] = useState(null);
-  const [showModalCopy, setShowModalCopy] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
-  const [isVisibleAdd, setIsVisibleAdd] = useState(false);
-  const editRef = useRef(null); 
+    const [showModalCopy, setShowModalCopy] = useState(false);
+      const [isVisible, setIsVisible] = useState(false);
+      const editRef = useRef(null); 
+        const [tipoPessoa, setTipoPessoa] = useState('física');
+         const [isVisibleAdd, setIsVisibleAdd] = useState(false); 
+       
+          const [errorCPF, setErrorCPF] = useState('');
+           const [errorCNPJ, setErrorCNPJ] = useState('');
 
-  
+           const handleBlurCNPJ = () => {
+            const cnpj = formData.cnpj;
+              if (!validaCNPJ(cnpj)) {
+                setErrorCNPJ('CNPJ inválido');
+                setFormData({ ...formData, cnpj: '' });
+              } else {
+                setErrorCNPJ('');
+              }
+          };
+          function validaCNPJ (cnpj) {
+            var b = [ 6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2 ]
+            var c = String(cnpj).replace(/[^\d]/g, '')
+            
+            if(c.length !== 14)
+                return false
+        
+            if(/0{14}/.test(c))
+                return false
+        
+            for (var i = 0, n = 0; i < 12; n += c[i] * b[++i]);
+            if(c[12] != (((n %= 11) < 2) ? 0 : 11 - n))
+                return false
+        
+            for (var i = 0, n = 0; i <= 12; n += c[i] * b[i++]);
+            if(c[13] != (((n %= 11) < 2) ? 0 : 11 - n))
+                return false
+        
+            return true
+        }
 
+
+
+          const isTopParam = new URLSearchParams(location.search).get('top') === 'true';
+          useEffect(() => {
+            if (isTopParam) {
+              editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, [isTopParam]); // Re-run if the query parameter changes
+        
+const handleChange = (e) => {
+  const { name, value } = e.target;
+
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
+};
+
+const handleBlurCPF = () => {
+  const cpf = formData.cpf;
+    if (!validateCPF(cpf)) {
+      setErrorCPF('CPF inválido');
+      setFormData({ ...formData, cpf: '' });
+    } else {
+      setErrorCPF('');
+    }
+};
+
+const validateCPF = (cpf) => {
+  // Remove non-digit characters
+  cpf = cpf.replace(/[^\d]+/g, "");
+
+  // Check if CPF has 11 digits
+  if (cpf.length !== 11) return false;
+
+  // CPF cannot be all identical digits
+  if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+  // First check digit
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cpf.charAt(i)) * (10 - i);
+  }
+  let firstCheckDigit = 11 - (sum % 11);
+  if (firstCheckDigit === 10 || firstCheckDigit === 11) firstCheckDigit = 0;
+
+  // Second check digit
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cpf.charAt(i)) * (11 - i);
+  }
+  let secondCheckDigit = 11 - (sum % 11);
+  if (secondCheckDigit === 10 || secondCheckDigit === 11) secondCheckDigit = 0;
+
+  // Compare calculated check digits with the ones in the CPF
+  return firstCheckDigit === parseInt(cpf.charAt(9)) && secondCheckDigit === parseInt(cpf.charAt(10));
+};
 
   useEffect(() => {
     reloadCidades();
   }, []);
 
+  const handleTipoPessoaChange = (event) => {
+    setTipoPessoa(event.target.value);
+    formData.tipo_pessoa = event.target.value;
+  };
 
   
   // Handle form submit to fetch data
@@ -69,7 +170,7 @@ const handleSubmitSearch = (e) => {
   setLoading(true);
 
   const searchParams = new URLSearchParams(formData);
-  const url = `https://api.williamvieira.tech/api-logs.php?${searchParams.toString()}`;
+  const url = `https://api.williamvieira.tech/proprietario.php?${searchParams.toString()}`;
   
   fetch(url)
     .then((response) => response.json())
@@ -84,26 +185,6 @@ const handleSubmitSearch = (e) => {
     
 };
 
-
-  const isTopParam = new URLSearchParams(location.search).get('top') === 'true';
-  useEffect(() => {
-    if (isTopParam) {
-      editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [isTopParam]); // Re-run if the query parameter changes
-
-
-const addIMovel = () => {
-
-  setIsVisibleAdd(false);
-  setIsEditing(false);
-  reloadCidades();
-  setFormData({
-    cidade: "",
-  });
-  editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-};
 
  const handleChangeForm = (e) => {
     const { name, value } = e.target;
@@ -120,7 +201,7 @@ const addIMovel = () => {
     setLoading(true);
 
     const searchParams = new URLSearchParams({ search_value: searchValue });
-    const url = `https://api.williamvieira.tech/api-logs.php?${searchParams.toString()}`;
+    const url = `https://api.williamvieira.tech/cartorio.php?${searchParams.toString()}`;
 
     try {
       const response = await fetch(url);
@@ -141,9 +222,8 @@ const addIMovel = () => {
         }, 500), // Delay de 500ms
         []
       );
-  
-  
 
+  
   const toggleVisibility = () => {
     setIsVisible(!isVisible);
     if(isVisible == true) {
@@ -151,6 +231,7 @@ const addIMovel = () => {
       formData.search_value = "";
     }
 };
+
 
 
 const handleCopy = () => {
@@ -209,7 +290,6 @@ const handleCopy = () => {
       alert("Falha ao copiar os dados para a área de transferência!");
     });
 };
-
 
 const handleExport = () => {
   try {
@@ -294,7 +374,7 @@ const handleExport = () => {
     // Cria e dispara o download do arquivo CSV
     const a = document.createElement("a");
     a.href = url;
-    a.download = "logs.csv";
+    a.download = "proprietarios.csv";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -305,14 +385,13 @@ const handleExport = () => {
   }
 };
 
-
   const reloadCidades = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('https://api.williamvieira.tech/api-logs.php');
+      const response = await axios.get('https://api.williamvieira.tech/proprietario.php');
       setCidades(response.data);
     } catch (error) {
-      setAlertMessage("Erro ao carregar as cidades.");
+      setAlertMessage("Erro ao carregar as proprietários.");
       setAlertVariant("danger");
       setShowAlert(true);
     } finally {
@@ -325,100 +404,171 @@ const handleExport = () => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSubmit = async (e) => {
+  const addIMovel = () => {
 
+    setIsVisibleAdd(false);
+    setIsEditing(false);
+    reloadCidades();
+    setFormData({
+      tipo_pessoa: "física",
+      nome: "",
+      nome_proprietario_grupo: "",
+      cpf: '',
+      cnpj: '',
+      razao_social: ''
+    });
+    setTipoPessoa('física');
     editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    e.preventDefault();
+  
+  };
 
-    if (!formData.cidade.trim()) {
-      setAlertMessage("A cidade não pode estar vazia!");
-      setAlertVariant("danger");
-      setShowAlert(true);
-      return;
-    }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
     setLoading(true);
 
+
+
     try {
-      if (isEditing) {
-        await axios.put(`https://api.williamvieira.tech/api-logs.php?id=${formData.id}&cidade=${formData.cidade}`);
-        setAlertMessage("Cidade atualizada com sucesso!");
-      } else {
-        await axios.post('https://api.williamvieira.tech/api-logs.php?cidade=' + formData.cidade);
-        setAlertMessage("Cidade cadastrada com sucesso!");
-      }
-      setAlertVariant("success");
-      setShowAlert(true);
+      
      
+
+  const method = isEditing ? 'PUT' : 'POST';
+  const url = isEditing ? `https://api.williamvieira.tech/proprietario.php?id=${formData.id}` : 'https://api.williamvieira.tech/proprietario.php';
+  
+
+
+  fetch(url, {
+    method: method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(formData),
+  })
+  .then((response) => response.json())
+  .then((data) => {
+    console.log(data);
+    setAlertMessage(data.message); // Mensagem de sucesso
+    setAlertVariant("success"); // Tipo de alerta
+    setShowAlert(true);
+    if (isEditing) { 
+      setAlertMessage("Proprietário atualizada com sucesso!");
+    } else {
+      setAlertMessage("Proprietário cadastrado com sucesso!");
+      setFormData({
+        tipo_pessoa: "física",
+        nome: "",
+        nome_proprietario_grupo: "",
+        cpf: '',
+        cnpj: '',
+        razao_social: ''
+      });
+    }
+    const fullname = localStorage.getItem("fullname");
+    const module = 'proprietarios';
+    const module_id = "";
+    const user_id = localStorage.getItem("id");
+    const user_name = fullname;
+    var event = 'add';
+    var logText = 'adicionou o proprietário ' + formData.nome;
+    if(isEditing) {
+        var event = 'edit';
+        var logText = 'editou o proprietário ' + formData.nome;
+    } else {
+      setIsEditing(false);
+      setFormData({
+        tipo_pessoa: "física",
+        nome: "",
+        nome_proprietario_grupo: "",
+        cpf: '',
+        cnpj: '',
+        razao_social: ''
+      });
+    }
+    logEvent(event, module, module_id, user_id, user_name, fullname + " " + logText, formData.apelido, formData.matriculasSelecionadas);
+    reloadCidades();
+  })
+  .catch((error) => {
+    const teste = JSON.stringify(formData)
+    console.log(teste);
+    setAlertMessage('Erro ao salvar ou proprietário já existe'); // Mensagem de sucesso
+    setAlertVariant("danger"); // Tipo de alerta
+    setShowAlert(true);
+  });
+
+    
     } catch (error) {
-      setAlertMessage("Erro ao salvar ou cidade já existe.");
+      setAlertMessage("Erro ao salvar ou Proprietário já existe.");
       setAlertVariant("danger");
       setShowAlert(true);
     } finally {
       setLoading(false);
     }
-
-    const fullname = localStorage.getItem("fullname");
-    const module = 'cidades';
-    const module_id = "";
-    const user_id = localStorage.getItem("id");
-    const user_name = fullname;
-    var event = 'add';
-    var logText = 'adicionou a cidade ' + formData.cidade;
-    if(isEditing) {
-        var event = 'edit';
-        var logText = 'editou a cidade ' + formData.cidade;
-    } else {
-      setIsEditing(false);
-      setFormData({ cidade: '' });
-    }
-
+    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     reloadCidades();
-
-    logEvent(event, module, module_id, user_id, user_name, fullname + " " + logText, formData.apelido, formData.matriculasSelecionadas);
-
   };
 
   const handleEdit = (cidade) => {
     setIsVisibleAdd(true);
-    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setIsEditing(true);
-    setFormData({ id: cidade.id, cidade: cidade.nome });
+    setFormData(cidade);
+    setTipoPessoa(cidade.tipo_pessoa);
+    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const handleDelete = async () => {
       try {
-
-        await axios.delete(`https://api.williamvieira.tech/api-logs.php?id=${deletingId}`);
-        setAlertMessage("Cidade excluída com sucesso!");
+        await axios.delete(`https://api.williamvieira.tech/proprietario.php?id=${deletingId}`);
+        setShowAlert(true);
+        setAlertMessage("Proprietário excluído com sucesso!");
         setAlertVariant("success");
         setShowDeleteModal(false);
         reloadCidades();
-
-        const fullname = localStorage.getItem("fullname");
-        const module = 'cidades';
-        const module_id = "";
-        const user_id = localStorage.getItem("id");
-        const user_name = fullname;
-        var event = 'delete';
-        var logText = 'excluiu a cidade ' + deletingName;
-
-        logEvent(event, module, module_id, user_id, user_name, fullname + " " + logText, formData.apelido, formData.matriculasSelecionadas);
         
       } catch (error) {
-
-        setAlertMessage("Erro ao excluir a cidade.");
+        setShowAlert(true);
+        setAlertMessage("Erro ao excluir o Proprietário.");
         setAlertVariant("danger");
         setShowDeleteModal(false);
-
       }
+
+      const fullname = localStorage.getItem("fullname");
+      const module = 'proprietarios';
+      const module_id = "";
+      const user_id = localStorage.getItem("id");
+      const user_name = fullname;
+      var event = 'delete';
+      var logText = 'excluiu o proprietário ' + deletingName;
+      logEvent(event, module, module_id, user_id, user_name, fullname + " " + logText, formData.apelido, formData.matriculasSelecionadas);
     
   };
 
   const columns = [
-    { name: "Data", selector: (row) => row.date || "", sortable: true },
-    { name: "Log", selector: (row) => row.desc || "", sortable: true }
+ {
+      cell: (row) => (
+        <div>
+          <button className="btn btn-info btn-sm mr-15" onClick={() => handleEdit(row)}>
+            <FontAwesomeIcon icon={faPenToSquare} /> Editar
+          </button>
+        </div>
+      ),
+      width: "125px" // Define a largura da primeira coluna
+    },
+    {
+      name: "",
+      cell: (row) => (
+        <div>
+          <button className="btn btn-danger btn-sm" onClick={() => { setDeletingId(row.id); setDeletingName(row.nome); setShowDeleteModal(true); }}> <FontAwesomeIcon icon={faTrash} /> Excluir</button>
+        </div>
+      ),
+      width: "125px" // Define a largura da primeira coluna
+    },
+    { name: "Proprietários", selector: (row) => row.nome, sortable: true },
+    { name: "Grupos", selector: (row) => row.nome_proprietario_grupo, sortable: true },
+    { name: "Tipo", selector: (row) => row.tipo_pessoa, sortable: true },
+    { name: "CPF", selector: (row) => row.cpf, sortable: true },
+    { name: "CNPJ", selector: (row) => row.cnpj, sortable: true },
+    { name: "Razão Social", selector: (row) => row.razao_social, sortable: true }
   ];
+  
 
   
 
@@ -432,7 +582,7 @@ const handleExport = () => {
               className="icone-title-serbom" 
               src="https://williamvieira.tech/LogoVRi-sem-fundo.png" 
               alt="Ícone Grupo Serbom" 
-            /> Logs - Atividades
+            /> Proprietários
           </h1>
             </div>
            
@@ -492,8 +642,10 @@ const handleExport = () => {
                    <button className="btn btn-dark mb-3 btnExport" onClick={handleExport}> <FontAwesomeIcon icon={faFileCsv} /> CSV</button>
                    )}
                     {cidades.length > 0 && (
-                  <button className="btn btn-dark mb-3  btn-info-grid" onClick={handleCopy}>  <FontAwesomeIcon icon={faCopy} /> Copiar</button>
-                 )}
+
+                  <button className="btn btn-dark mb-3  btn-info-grid" onClick={handleCopy}> <FontAwesomeIcon icon={faCopy} /> Copiar</button>
+                
+                )}
              
              {cidades.length > 0 && !isVisible && (
                        <button className="btn btn-secondary mb-3 btn-info-grid" onClick={toggleVisibility}> <FontAwesomeIcon icon={faFilter} /> Filtrar </button>
@@ -502,8 +654,8 @@ const handleExport = () => {
       columns={columns}
       data={cidades}
       pagination
-      paginationPerPage={10}
-      paginationRowsPerPageOptions={[10, 25, 50]}
+      paginationPerPage={5}
+      paginationRowsPerPageOptions={[5, 10, 50]}
       paginationText="Exibindo registros de"
       noDataComponent="Não há registros para exibir"
       customStyles={{
@@ -542,7 +694,144 @@ const handleExport = () => {
         </div>
       </div>
 
-  
+      <div className="card shadow-lg border-0 rounded-lg mt-4">
+        <div className="card-body">
+           <div className="row">
+                      <div className="col-md-12">
+                      {isVisibleAdd && (
+                                  <button type="submit" onClick={addIMovel} className="btn btn-light btn-relative-default">
+                                      <FontAwesomeIcon icon={faClose} /> Cancelar
+                                    </button>
+                                )}
+                      </div>
+                    </div>
+          <form onSubmit={handleSubmit}>
+            <div className="mb-3 form-floating">
+              <input
+                type="text"
+                className="form-control"
+                id="nome"
+                name="nome"
+                value={formData.nome}
+                onChange={handleInputChange}
+                placeholder="Digite o nome"
+                required
+              />
+              <label htmlFor="nome">Nome Proprietário <span className="text-danger">*</span></label>
+            </div>
+            <div className="mb-3 form-floating">
+              <input
+                type="text"
+                className="form-control"
+                id="nome_proprietario_grupo"
+                name="nome_proprietario_grupo"
+                value={formData.nome_proprietario_grupo}
+                onChange={handleInputChange}
+                placeholder="Digite o Grupo"
+                required
+              />
+              <label htmlFor="nome_proprietario_grupo">Grupo Proprietário <span className="text-danger">*</span></label>
+            </div>
+
+            <div className="row">
+                      <label className="labelCheck"><b>Pessoa</b> <span className="text-danger">*</span></label>
+                        <div className="col-md-12 mb-3">
+                          
+            <div className="form-check form-check-inline">
+                      <input
+                        type="radio"
+                        className="form-check-input"
+                        id="fisica"
+                        name="tipoPessoa"
+                        value="física"
+                        checked={tipoPessoa === 'física'}
+                        onChange={handleTipoPessoaChange}
+                      />
+                      <label className="form-check-label" htmlFor="fisica">Física</label>
+                    </div>
+                    <div className="form-check form-check-inline">
+                      <input
+                        type="radio"
+                        className="form-check-input"
+                        id="juridica"
+                        name="tipoPessoa"
+                        value="jurídica"
+                        checked={tipoPessoa === 'jurídica'}
+                        onChange={handleTipoPessoaChange}
+                        
+                      />
+                      <label className="form-check-label" htmlFor="juridica">Jurídica</label>
+                    </div>
+                        </div>
+                      </div>
+                      
+            
+                     
+            
+                    {/* Campo CPF com Floating Label - Visível apenas para Pessoa Física */}
+                    {tipoPessoa === 'física' && (
+                      <div className="form-floating mb-3">
+                        <InputMask
+                          mask="999.999.999-99" // Máscara de CPF
+                          className={`form-control ${errorCPF ? 'is-invalid' : ''}`}
+                          id="cpf"
+                          name="cpf"
+                          value={formData.cpf}
+                          onChange={handleChange}
+                          onBlur={handleBlurCPF}
+                          placeholder=""
+                          required
+                        />
+                        <label htmlFor="cpf">Informe o CPF do proprietário</label>
+                        {errorCPF && <div className="invalid-feedback">CPF inválido!</div>}
+                      </div>
+                    )}
+            
+                    {/* Campo CNPJ com Floating Label - Visível apenas para Pessoa Jurídica */}
+                    {tipoPessoa === 'jurídica' && (
+                      <div className="form-floating mb-3">
+                        <InputMask
+                          mask="99.999.999/9999-99" // Máscara de CNPJ
+                          className={`form-control ${errorCNPJ ? 'is-invalid' : ''}`}
+                          id="cnpj"
+                          name="cnpj"
+                          value={formData.cnpj}
+                          onChange={handleChange}
+                          onBlur={handleBlurCNPJ}
+                          placeholder=" "
+                          required
+                        />
+                        <label htmlFor="cnpj">Informe o CNPJ do proprietário</label>
+                        {errorCNPJ && <div className="invalid-feedback">CNPJ inválido!</div>}
+                      </div>
+                    )}
+            
+                    {/* Campo Razão Social - Visível apenas para Pessoa Jurídica */}
+                    {tipoPessoa === 'jurídica' && (
+                      <div className="form-floating mb-3">
+                        <input
+                          type="text"
+                          className="form-control"
+                          id="razao_social"
+                          name="razao_social"
+                          value={formData.razao_social}
+                          onChange={handleChange}
+                          placeholder=" "
+                          required
+                        />
+                        <label htmlFor="razao_social">Razão Social</label>
+                      </div>
+                    )}
+
+            <div className="text-center">
+              <Button variant="success" type="submit">
+                {isEditing ? <FontAwesomeIcon icon={faFloppyDisk} /> : <FontAwesomeIcon icon={faCheck} />} {isEditing ? 'Salvar' : 'Cadastrar'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+
      
     </div>
       <footer className="py-4 bg-light mt-auto footerInterno">
@@ -595,4 +884,4 @@ const handleExport = () => {
   );
 };
 
-export default MainDashboard;
+export default Proprietario;

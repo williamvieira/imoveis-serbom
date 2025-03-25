@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback  } from "react";
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
-// Certifique-se de carregar o módulo de exportação
 import Exporting from 'highcharts/modules/exporting';
 import ExportData from 'highcharts/modules/export-data';
 import DataTable from "react-data-table-component";
@@ -10,18 +9,50 @@ import InputMask from "react-input-mask";  // Importando a biblioteca de máscar
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Select from 'react-select'; // Importando o react-select
 import { CopyToClipboard } from 'react-copy-to-clipboard';
-import { faCopy, faPrint, faFilePdf, faSearch, faPlus, faFilter, faRightToBracket, faEnvelope, faFileExcel, faCheck, faFloppyDisk, faTrash, faPenToSquare, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faCopy, faPrint, faFilePdf, faSearch, faPlus, faFilter, faRightToBracket, faEnvelope, faFileExcel, faCheck, faFloppyDisk, faTrash, faPenToSquare, faXmark, faFileCsv } from '@fortawesome/free-solid-svg-icons';
 import { jsPDF } from "jspdf"; // Importa o jsPDF
 import "jspdf-autotable"; // Importa o plugin autotable
 import { Alert } from "react-bootstrap";
 import MaskedInput from 'react-text-mask';
 import axios from "axios";
-
+import { unset } from "lodash";
+import logEvent from '../logEvent';
+import GED from "./GED";
+import debounce from 'lodash.debounce';
+import { useLocation } from "react-router-dom";
 
 const initialData = [];
 
 function MatriculaImoveis() {
 
+  
+  const locationLog = useLocation();
+  
+  const fullname = localStorage.getItem("fullname");
+  const module = 'matriculas';
+  const module_id = "";
+  const user_id = localStorage.getItem("id");
+  const user_name = fullname;
+  var event = 'view';
+  var logText = 'visualizou a página ' + location.pathname;
+  
+  // Função para obter o horário atual formatado
+  const getCurrentTime = () => new Date().toLocaleString();
+  
+  useEffect(() => {
+    const lastLogTime = localStorage.getItem('lastLogTime');
+    const currentTime = getCurrentTime();
+  
+    // Se o horário for diferente, registre o evento
+    if (lastLogTime !== currentTime) {
+      logEvent("view", module, "", user_id, user_name, fullname + " " + logText, "", null);
+      localStorage.setItem('lastLogTime', currentTime); // Atualiza o horário registrado
+    }
+  }, []); // Array de dependências vazio para executar uma vez ao montar o componente
+
+
+  
+const [dataHistory, setDataHistory] = useState([]);
   const [showAlert, setShowAlert] = useState(false); 
   const [alertMessage, setAlertMessage] = useState(""); 
   const [alertVariant, setAlertVariant] = useState("success"); 
@@ -39,29 +70,139 @@ function MatriculaImoveis() {
   const [inputValue, setInputValue] = useState(''); // Valor digitado pelo usuário
   const [optionsSelect, setOptions] = useState([]); 
   const [key, setKey] = useState(0); // Control re-render
-  const [cities, setCities] = useState([]); //
+  const [cities, setCities] = useState([]);
+  const [cartorios, setCartorios] = useState([]);
+  const [proprietarios, setProprietarios] = useState([]);
+  const [optionsLocal, setOptionsLocal] = useState([]); // Store fetched options
+  const [selectedOptions, setSelectedOptions] = useState([]); // Store selected options
+  const [keyGED, setKeyGED] = useState(0);
 
-  const handleInputChange = (newInputValue) => {
-    fetchOptions(newInputValue);
-    setInputValue(newInputValue); // Atualiza o valor enquanto o usuário digita
+  const formatDateToBR = (dateString) => {
+  const date = new Date(dateString);
+
+  // Use toLocaleString to format the date in Brazilian format
+  const options = {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false, // 24-hour time format
   };
 
+  return date.toLocaleString('pt-BR', options).replace(',', ''); ;
+};
+
+
+    // Handle change in multi-select
+    const handleSelectChange = (selectedOptions) => {
+      // Update formData with the selected options
+      setFormData({
+        ...formData,
+        local: selectedOptions, 
+      });
+    };
+
+  const handleInputChangeCod = (newInputValue) => {
+    fetchOptions(newInputValue);
+    setInputValue(newInputValue); 
+  };
+
+    // Função para atualizar o estado de 'formData' enquanto o usuário digita
+    const handleInputChange = (e) => {
+      const { name, value } = e.target;
+      setFormData((prevData) => ({
+        ...prevData,
+        [name]: value,
+      }));
+  
+      // Chama a função debounced para pesquisar após digitar
+      debouncedSearch(value);
+    };
+
+    const searchApi = async (searchValue) => {
+      setLoading(true);
+  
+      const searchParams = new URLSearchParams({ search_value: searchValue });
+      const url = `https://api.williamvieira.tech/imoveis.php?${searchParams.toString()}`;
+  
+      try {
+
+        const response = await fetch(url);
+        const data = await response.json();
+        setData(data); // Atualiza os dados
+
+      } catch (error) {
+        console.error('Erro ao buscar dados: ', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    // Criação do debounce para a função de busca
+    const debouncedSearch = useCallback(
+      debounce((searchValue) => {
+        searchApi(searchValue); // Chama a função de busca com o valor
+      }, 500), // Delay de 500ms
+      []
+    );
+
   useEffect(() => {
-    // Assuming the API URL is '/api/cities'
     axios
       .get("https://api.williamvieira.tech/cidade.php")
       .then((response) => {
         const sortedCities = response.data.sort((a, b) => {
-          // Sort cities by the 'nome' field alphabetically
           return a.nome.localeCompare(b.nome);
         });
-        setCities(sortedCities); // Save the fetched cities to state
-        setLoading(false); // Set loading to false once the data is fetched
+        setCities(sortedCities); 
+        setLoading(false);
       })
       .catch((error) => {
-        setError("Failed to fetch cities."); // Set an error message if the fetch fails
-        setLoading(false); // Set loading to false even if there's an error
+        setError("Failed to fetch cities."); 
+        setLoading(false);
       });
+      axios
+      .get("https://api.williamvieira.tech/cartorio.php")
+      .then((response) => {
+        const sortedCartorios = response.data.sort((a, b) => {
+          return a.nome.localeCompare(b.nome);
+        });
+        setCartorios(sortedCartorios);
+        setLoading(false);
+      })
+      .catch((error) => {
+        setError("Failed to fetch cities."); 
+        setLoading(false); 
+      });
+      axios
+      .get("https://api.williamvieira.tech/local.php")
+      .then((response) => {
+        const apiOptions = response.data.map(item => ({
+          value: item.id, 
+          label: item.nome,
+        }));
+        setOptionsLocal(apiOptions); 
+        setLoading(false); 
+      })
+      .catch((error) => {
+        setError("Failed to fetch cities."); 
+        setLoading(false); 
+      });
+      axios
+      .get("https://api.williamvieira.tech/proprietarios.php")
+      .then((response) => {
+        const sortedCartorios = response.data.sort((a, b) => {
+          return a.nome.localeCompare(b.nome);
+        });
+        setProprietarios(sortedCartorios); 
+        setLoading(false);
+      })
+      .catch((error) => {
+        setError("Failed to fetch cities.");
+        setLoading(false);
+      });
+  
   }, []);
 
 
@@ -72,25 +213,37 @@ function MatriculaImoveis() {
     cod_matricula: selectedOption ? selectedOption.value : "", // Updating cod_matricula
   }));
   handleSearch1(selectedOption.value);
+  
 };
 
 const handleSearch1 = async (value) => {
+
   try {
 
-    
     const response = await fetch(`https://api.williamvieira.tech/codmatricula.php?cod_matricula=${value}`);
     const data = await response.json();
 
-    ////console.log(data);
-
-    // Se a consulta foi bem-sucedida, atualiza o estado com os dados retornados
     if (data.cod_matricula) {
-      setFormData(data);
       setIsVisibleAdd(true);
+      const metros_fundo = data.metros_fundo;
+      const metros_lado_direito = data.metros_lado_direito;
+      const metros_lado_esquerdo = data.metros_lado_esquerdo;
+      const metros_de_frente = data.metros_de_frente;
+      const area_terreno = data.area_terreno;
+      const area_construida = data.area_construida;
+      localStorage.setItem("register_id", data.cod);
       setFormData({
         ...data,
-        valor_compra: formatCurrency(data.valor_compra)
+        valor_compra: formatCurrency(data.valor_compra),
+        valor_compra_contrato: formatCurrency(data.valor_compra_contrato),
+        metros_fundo: metros_fundo,
+        metros_lado_direito: metros_lado_direito,
+        metros_lado_esquerdo: metros_lado_esquerdo,
+        metros_de_frente: metros_de_frente,
+        area_terreno: area_terreno,
+        area_construida: area_construida
       });
+      setMetrosFrente(data.geometria_regular);
       setIsEditing(true);
       setEditingId(data.id);
       setErrorCPF(false);
@@ -98,7 +251,6 @@ const handleSearch1 = async (value) => {
       setErrorCNPJ(false);
       setErrorData(false);
       editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
     } else {
       setShowModalCod(true);
       setFormData({
@@ -106,6 +258,49 @@ const handleSearch1 = async (value) => {
         cod_matricula: '',
         apelido : ''
       });
+    }
+  } catch (error) {
+    console.error("Erro ao consultar API:", error);
+    alert("Erro ao buscar dados teste.");
+  }
+};
+
+
+const handleSearchProprietario = async (value) => {
+  try {
+
+    // alert(value);
+    const response = await fetch(`https://api.williamvieira.tech/codproprietarios.php?cod_proprietario=${value}`);
+    const data = await response.json();
+
+    console.log("busca");
+    console.log(data);
+
+    // Se a consulta foi bem-sucedida, atualiza o estado com os dados retornados
+    if (data.nome) {
+      setFormData({
+        ...formData,
+        nome_proprietario : data.nome,
+        nome_proprietario_grupo : data.nome_proprietario_grupo,
+        tipo_pessoa : data.tipo_pessoa,
+        cpf : data.cpf,
+        cnpj: data.cnpj,
+        razao_social : data.razao_social
+      });
+      setTipoPessoa(data.tipo_pessoa);
+      console.log("william");
+      console.log(formData);
+    } else {
+      setFormData({
+        ...formData,
+        nome_proprietario : "",
+        nome_proprietario_grupo : "",
+        tipo_pessoa : "",
+        cpf : "",
+        cnpj: "",
+        razao_social : ""
+      });
+      setTipoPessoa('física');
     }
   } catch (error) {
     console.error("Erro ao consultar API:", error);
@@ -135,6 +330,19 @@ const handleSearch1 = async (value) => {
     return `R$ ${valorFormatado}`;
   };
 
+
+  const formatarArea = (valor) => {
+    // Remove qualquer caractere que não seja número
+    let valorFormatado = valor.replace(/\D/g, '');
+    
+    // Formata o valor para o formato "R$ 200,00"
+    valorFormatado = valorFormatado.replace(/(\d)(\d{8})$/, '$1.$2');
+    valorFormatado = valorFormatado.replace(/(\d)(\d{5})$/, '$1.$2');
+    valorFormatado = valorFormatado.replace(/(\d)(\d{2})$/, '$1,$2');
+
+    // Adiciona o "R$" no início
+    return `${valorFormatado}`;
+  };
   
   const toggleVisibility = () => {
     setIsVisible(!isVisible);
@@ -182,79 +390,148 @@ const handleSearch1 = async (value) => {
 
  
 
-  const months = dataG.map(item => item.year); // Meses
-  const values = dataG.map(item => item.totalValue); // Valores totais
-
+  const months = dataG.map(item => item.year); 
+  const values = dataG.map(item => item.totalValue); 
 
   const options = {
     chart: {
-      type: 'column'
+        type: 'column'
     },
     title: {
-      text: 'Valor Compra por Ano'
+        text: 'Valor Compra Contrato por Ano'
     },
     xAxis: {
-      categories: months, // Meses
-      title: {
-        text: 'Ano'
-      }
+        categories: months, 
+        title: {
+            text: 'Ano'
+        }
     },
     yAxis: {
-      title: {
-        text: 'Valor Total (R$)'
-      },
-      allowDecimals: false
+        title: {
+            text: 'Valor Total (R$)'
+        },
+        allowDecimals: false
     },
     series: [
-      {
-        name: 'Valor Total',
-        data: values, // Valores totais
-        colorByPoint: true,
-        colors: ['#FF5733', '#33FF57', '#3357FF', '#FF33A8', '#33FFFF', '#F4FF33'],
-      }
+        {
+            name: 'Valor Total',
+            data: values, // Valores totais
+            colorByPoint: true,
+            colors: ['#FF5733', '#33FF57', '#3357FF', '#FF33A8', '#33FFFF', '#F4FF33'],
+            pointWidth: 35, // Ajusta a largura das colunas
+        }
     ],
+    plotOptions: {
+        column: {
+            borderRadius: 5, // Bordas arredondadas
+            groupPadding: 0.1, // Reduz espaço entre grupos de colunas
+            pointPadding: 0.1, // Reduz espaço entre colunas individuais
+            minPointLength: 5 // Aumenta a altura das colunas pequenas para que fiquem visíveis
+        }
+    },
     tooltip: {
-      headerFormat: '<span style="font-size:10px">{point.key}</span><br/>',
-      pointFormat: '<span style="color:{point.color}">• </span>R$ {point.y}'
+        headerFormat: '<span style="font-size:10px">{point.key}</span><br/>',
+        pointFormat: '<span style="color:{point.color}">• </span>R$ {point.y}'
     },
     credits: {
-      enabled: false // Desabilitar créditos do Highcharts
+        enabled: false // Desabilitar créditos do Highcharts
     },
     exporting: {
-      enabled: true, // Habilitar exportação
-      url: 'https://api.williamvieira.tech/chart.php', // URL to your custom proxy server
-      buttons: {
-        contextButton: {
-          symbol: 'menu', // Ícone do menu
-          menuItems: [
-            'downloadXLS', // Export to Excel
-            'downloadCSV', // Export to CSV
-          ]
+        enabled: true, // Habilitar exportação
+        url: 'https://api.williamvieira.tech/chart.php',
+        buttons: {
+            contextButton: {
+                symbol: 'menu',
+                menuItems: [
+                    'downloadXLS',
+                    'downloadCSV',
+                ]
+            }
         }
-      }
     },
+};
 
-  };
+  
 const handleCopy = () => {
-  // Copiar todos os dados da tabela
-  const tableData = data.map(row => {
-    return Object.values(row).join('\t');
-  }).join('\n');
+  if (data.length === 0) {
+    alert("Nenhum dado disponível para copiar!");
+    return;
+  }
+
+  // Função para remover "R$" e formatar valores
+  const formatCurrency = (value) => {
+    if (typeof value === "string") {
+      return value.replace(/R\$\s?/g, "");
+    }
+    return value;
+  };
+
+  // Extrair o cabeçalho baseado no nome das colunas
+  const header = columns
+    .filter((col) => col.name) // Ignora colunas sem nome
+    .map((col) => col.name)
+    .join("\t"); // Junta os nomes das colunas com tabulação
+
+  // Extrair os dados das linhas
+  const tableData = data
+    .map((row) => {
+      return columns
+        .filter((col) => col.name) // Ignora colunas sem nome
+        .map((col) => {
+          if (col.selector) {
+            let value = col.selector(row);
+
+            // Formatar valores das colunas específicas
+            if (["Valor Compra Escritura", "Valor Compra Contrato"].includes(col.name)) {
+              value = formatCurrency(value);
+            }
+
+            return value;
+          }
+          return "";
+        })
+        .join("\t"); // Junta os valores de cada linha com tabulação
+    })
+    .join("\n"); // Junta as linhas com uma nova linha
+
+  // Combina cabeçalho e dados das linhas
+  const fullData = `${header}\n${tableData}`;
 
   // Copiar para a área de transferência
-  navigator.clipboard.writeText(tableData).then(() => {
-    setShowModalCopy(true);
-  });
+  navigator.clipboard
+    .writeText(fullData)
+    .then(() => {
+      setShowModalCopy(true); // Exibir modal de confirmação
+      editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const fullname = localStorage.getItem("fullname");
+      const event = 'copy';
+      const module = 'matriculas';
+      const user_id = localStorage.getItem("id");
+      const user_name = fullname;
+      logEvent(event, module, module_id, user_id, user_name, fullname + " copiou os dados em Matrículas", null, null);
+    })
+    .catch((err) => {
+      console.error("Falha ao copiar os dados: ", err);
+      alert("Falha ao copiar os dados para a área de transferência!");
+    });
 };
 
 
-const logoUrl = 'https://imoveis.williamvieira.tech/teste.png';  // Image is inside the 'public' folder
+
+
+const logoUrl = 'https://imoveis.williamvieira.tech/LogoVRi-sem-fundo.png';  // Image is inside the 'public' folder
+
 const generatePDF = () => {
+
+  delete formData.local;
+
   const doc = new jsPDF();
 
   // Cria um elemento de imagem para carregar o logo para ajuste automático
   const img = new Image();
+
   img.onload = function () {
+
     // Obter as dimensões da imagem
     const imgWidth = img.width;
     const imgHeight = img.height;
@@ -271,7 +548,7 @@ const generatePDF = () => {
     // Título em formato normal e fonte maior
     doc.setFont("Arial", "bold");
     doc.setFontSize(14); // Aumenta o tamanho do título para destacá-lo
-    doc.text('Grupo Serbom - Matrículas de Imóveis', 105, 25, { align: 'center' });
+    doc.text('VRI - Matrículas de Imóveis', 105, 25, { align: 'center' });
 
     // Adicionar nome do usuário em negrito e fonte menor
     const userName = localStorage.getItem('fullname'); // Exemplo de nome do usuário
@@ -300,13 +577,20 @@ const generatePDF = () => {
         .replace(/_/g, ' ') // Substituir underscores por espaços
         .replace(/\b\w/g, (char) => char.toUpperCase()); // Capitalizar a primeira letra de cada palavra
     };
+    
+   
 
     Object.entries(formData).forEach(([key, value]) => {
-      doc.setFont("Arial", "bold");
-      doc.text(`${formatKey(key)}:`, 20, yOffset); // Chave formatada
-
-      doc.setFont("Arial", "normal");
-      doc.text(value || 'N/A', 90, yOffset); // Valor
+     
+        doc.setFont("Arial", "bold");
+        doc.text(`${formatKey(key)}:`, 20, yOffset); // Chave formatada
+  
+        doc.setFont("Arial", "normal");
+        if (!Array.isArray(value)) {
+          doc.text(value || 'N/A', 90, yOffset); // Valor
+        }
+      
+      
 
       yOffset += 10;
 
@@ -318,7 +602,7 @@ const generatePDF = () => {
     });
 
     // Salvar o PDF gerado
-    doc.save('Serbom Matrículas de Imóveis ' + formData.cod_matricula + ' - ' + formData.apelido);
+    doc.save('VRI Matrículas de Imóveis ' + formData.cod_matricula + ' - ' + formData.apelido);
   };
 
   // Definir a URL da imagem (isto dispara o carregamento da imagem)
@@ -335,6 +619,9 @@ const addIMovel = () => {
     cidade_registro: "",
     cartorio_registro: "",
     nome_proprietario: "",
+    nome_proprietario_conceito: "",
+    local: [],
+    nome_proprietario_grupo: "",
     cpf: "",
     cnpj: "",
     razao_social: "",
@@ -357,13 +644,19 @@ const addIMovel = () => {
     data_compra: "",
     nome_vendedor: "",
     valor_compra: "",
-    observacoes: ""
+    valor_compra_contrato: "",
+    data_compra_contrato: "",
+    data_compra_string: "",
+    observacoes: "",
+    latidude: "",
+    longitude : ""
   });
   editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
   setOptions([]);
   setInputValue();
   setKey((prevKey) => prevKey + 1); // Force re-render
 };
+
 
   const [formData, setFormData] = useState({
     apelido: "",
@@ -372,6 +665,8 @@ const addIMovel = () => {
     cidade_registro: "",
     cartorio_registro: "",
     nome_proprietario: "",
+    nome_proprietario_conceito: "",
+    local: [],
     nome_proprietario_grupo: "",
     cpf: '',
     cnpj: '',
@@ -395,9 +690,11 @@ const addIMovel = () => {
     data_compra_string: "",
     nome_vendedor: "",
     valor_compra: "",
+    valor_compra_contrato: "",
+    data_compra_contrato: "",
+    data_compra_contrato_string: "",
     observacoes: "",
     search_value: ""
-
   });
 
   const [errors, setErrors] = useState({
@@ -559,11 +856,105 @@ const addIMovel = () => {
         fetchTotalCompra();
   }
 
+  // Função para formatar o valor
+  const formatValue = (val) => {
+    // Remove qualquer caractere que não seja número ou ponto
+    let formattedValue = val.replace(/[^\d,.-]/g, '');
+    
+    // Substitui a vírgula por ponto (se estiver presente)
+    formattedValue = formattedValue.replace(',', '.');
+    
+    // Formatação de milhar (usando ponto como separador de milhar)
+    formattedValue = formattedValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    
+    // Se houver mais de uma vírgula, converte tudo em uma vírgula
+    formattedValue = formattedValue.replace(/\./g, '');
+    formattedValue = formattedValue.replace(/(\d)(?=(\d{3})+\.)/g, '$1.');
+    
+    return formattedValue;
+  };
+   // Função para formatar valores com 3 casas decimais e separação de milhar
+   const formatarValorComPontos = (num) => {
+    return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(num);
+  };
+
+ // Função para verificar se o valor já está no formato correto
+ const isFormattedCorrectly = (value) => {
+  // Verificar se o valor contém separadores de milhar (pontos) e se já tem casas decimais
+  const regex = /^\d{1,3}(\.\d{3})*(,\d{3})?$/; // Exemplo: 1.000,000 ou 1000,000
+  return regex.test(value);
+};
+  
+
+const handleBlurPontos = (e) => {
+  // const { name, value } = e.target;
+
+  // // Verificar se o valor contém caracteres não numéricos (exceto pontos e vírgulas)
+  // if (!/^\d*[\.,]?\d*$/.test(value)) {
+  //   setFormData({
+  //     ...formData,
+  //     [name]: '', // Limpar o campo se o valor for inválido
+  //   });
+  //   return;
+  // }
+
+  // // Se o valor já está formatado corretamente, não aplica formatação
+  // if (isFormattedCorrectly(value)) {
+  //   return;
+  // }
+
+  // // Para campos numéricos (metros ou área), aplica a formatação
+  // if (
+  //   name === 'metros_de_frente' ||
+  //   name === 'metros_fundo' ||
+  //   name === 'metros_lado_direito' ||
+  //   name === 'metros_lado_esquerdo' ||
+  //   name === 'area_terreno'
+  // ) {
+  //   // Remover qualquer ponto antes de formatar
+  //   let valorSemPontos = value.replace(/\./g, '');
+
+  //   // Verificar se o valor contém uma vírgula ou ponto (parte decimal)
+  //   let [parteInteira, parteDecimal] = valorSemPontos.split(/[\.,]/);
+
+  //   // Se não houver parte decimal, adicione ",000" como padrão
+  //   if (!parteDecimal) {
+  //     parteDecimal = '000';
+  //   }
+
+  //   // Formatar a parte inteira com pontos (separador de milhar)
+  //   const valorFormatadoInteiro = parteInteira.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+  //   // Formatar o valor final no formato desejado (com vírgula para parte decimal)
+  //   const valorFormatado = `${valorFormatadoInteiro},${parteDecimal}`;
+
+  //   // Atualizar o estado com o valor formatado
+  //   setFormData({
+  //     ...formData,
+  //     [name]: valorFormatado,
+  //   });
+  // } else if (name === 'valor_compra' || name === 'valor_compra_contrato') {
+  //   // Para campos de moeda, aplica a formatação de moeda
+  //   const valorFormatado = formatarMoeda(value);
+  //   setFormData({
+  //     ...formData,
+  //     [name]: valorFormatado,
+  //   });
+  // }
+};
+
+
+
 // Função para atualizar o valor no estado
 const handleChange = (e) => {
   const { name, value } = e.target;
-
-  if (name === 'valor_compra') {
+  if(name === 'area_terreno' || name === 'area_construida' || name === 'metros_de_frente' || name === 'metros_fundo' || name === 'metros_lado_direito' || name === 'metros_lado_esquerdo') {
+    const valorFormatado = formatarArea(value);
+    setFormData({
+      ...formData,
+      [name]: valorFormatado,
+    });
+  } else if (name === 'valor_compra' || name === 'valor_compra_contrato') {
     const valorFormatado = formatarMoeda(value);
     setFormData({
       ...formData,
@@ -588,16 +979,6 @@ const handleChange = (e) => {
   const handleSubmitSearch = (e) => {
     e.preventDefault();
     setLoading(true);
-
-
-    // ////console.log('william');
-    // const valorFormatado = formatarMoeda(formData.valor_compra);
-    // setFormData({
-    //   ...formData,
-    //   valor_compra: valorFormatado
-    // });
-    
-    
 
     const searchParams = new URLSearchParams(formData);
     const url = `https://api.williamvieira.tech/imoveis.php?${searchParams.toString()}`;
@@ -636,15 +1017,36 @@ const handleChange = (e) => {
     })
     .then((response) => response.json())
     .then((data) => {
-      setAlertMessage(data.message); // Mensagem de sucesso
-      setAlertVariant("success"); // Tipo de alerta
-      setShowAlert(true);
-      reloadGrid();
-    })
-    .catch((error) => {
-      setAlertMessage('Erro ao salvar o imóvel'); // Mensagem de sucesso
-      setAlertVariant("danger"); // Tipo de alerta
-      setShowAlert(true);
+     
+      if(data.message) {
+        setAlertMessage(data.message); // Mensagem de sucesso
+        setAlertVariant("success"); // Tipo de alerta
+        setShowAlert(true);
+        reloadGrid();
+      } else {
+        setAlertMessage('Erro ao salvar o imóvel'); // Mensagem de sucesso
+        setAlertVariant("danger"); // Tipo de alerta
+        setShowAlert(true);
+      }
+      if (method === 'POST') {
+        const fullname = localStorage.getItem("fullname");
+        const event = 'insert';
+        const module = 'matriculas';
+        const module_id = "MT" + data.id;
+        const user_id = localStorage.getItem("id");
+        const user_name = fullname;
+        setKeyGED((prevKey) => prevKey + 1); // Alterando a chave para forçar a renderização
+        logEvent(event, module, module_id, user_id, user_name, fullname + " cadastrou a Matrícula - " + module_id, formData.apelido,  "");
+      } else {
+        const fullname = localStorage.getItem("fullname");
+        const event = 'edit';
+        const module = 'matriculas';
+        const module_id = formData.cod;
+        const user_id = localStorage.getItem("id");
+        const user_name = fullname;
+        logEvent(event, module, module_id, user_id, user_name, fullname + " alterou a Matrícula - " + module_id, formData.apelido, "");
+      }
+      setTimeout(() =>  fetchDataHistory(module_id), 1000);
     });
     editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     if (method === 'POST') {
@@ -654,6 +1056,9 @@ const handleChange = (e) => {
       cidade_registro: "",
       cartorio_registro: "",
       nome_proprietario: "",
+      nome_proprietario_conceito: "",
+      local: [],
+      nome_proprietario_grupo: "",
       cpf: "",
       cnpj: "",
       razao_social: "",
@@ -677,6 +1082,9 @@ const handleChange = (e) => {
       data_compra_string: "",
       nome_vendedor: "",
       valor_compra: "",
+      valor_compra_contrato: "",
+      data_compra_contrato: "",
+      data_compra_string: "",
       observacoes: ""
     });
     reloadForm();
@@ -690,12 +1098,45 @@ const handleChange = (e) => {
    
   };
 
+
+  const fetchDataHistory = async (id) => {
+    try {
+      const response = await axios.get('https://api.williamvieira.tech/get_arquivos.php?module_id=' + id); // Replace with your API
+      if (Array.isArray(response.data)) {
+        setDataHistory(response.data);
+      } else {
+        console.error('Expected an array but got:', response.data);
+        setDataHistory([]); // Set to an empty array if it's not an array
+      }
+    } catch (error) {
+      console.error('Error fetching data history:', error);
+    }
+  };
+
   const handleEdit = (row) => {
-    setIsVisibleAdd(true);
+    fetchOptions('');
+    setIsVisibleAdd(true); 
+    // const arrayLocais = JSON.parse(localSelecionadas);
+    localStorage.setItem("register_id", row.cod);
+    const metros_fundo = row.metros_fundo;
+    const metros_lado_direito = row.metros_lado_direito;
+    const metros_lado_esquerdo = row.metros_lado_esquerdo;
+    const metros_de_frente = row.metros_de_frente;
+    const area_terreno = row.area_terreno;
+    const area_construida = row.area_construida;
     setFormData({
       ...row,
-      valor_compra: formatCurrency(row.valor_compra)
+      valor_compra: formatCurrency(row.valor_compra),
+      valor_compra_contrato: formatCurrency(row.valor_compra_contrato),
+      metros_fundo: metros_fundo,
+      metros_lado_direito: metros_lado_direito,
+      metros_lado_esquerdo: metros_lado_esquerdo,
+      metros_de_frente: metros_de_frente,
+      area_terreno: area_terreno,
+      area_construida: area_construida
     });
+    console.log(optionsSelect);
+    setMetrosFrente(row.geometria_regular);
     setIsEditing(true);
     setEditingId(row.id);
     setErrorCPF(false);
@@ -705,6 +1146,7 @@ const handleChange = (e) => {
     editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     console.log("editar");
     console.log(formData);
+    fetchDataHistory(row.cod);
   };
 
   const handleDelete = () => {
@@ -718,6 +1160,13 @@ const handleChange = (e) => {
         setShowAlert(true);
         setShowDeleteModal(false);
         editRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const fullname = localStorage.getItem("fullname");
+        const event = 'delete';
+        const module = 'matriculas';
+        const module_id = "MT" + deletingId;
+        const user_id = localStorage.getItem("id");
+        const user_name = fullname;
+        logEvent(event, module, module_id, user_id, user_name, fullname + " deletou a Matrícula - " + module_id, formData.apelido, null);
       });
 
 
@@ -728,6 +1177,9 @@ const handleChange = (e) => {
         cidade_registro: "",
         cartorio_registro: "",
         nome_proprietario: "",
+        nome_proprietario_conceito: "",
+        local: [],
+        nome_proprietario_grupo: "",
         cpf: "",
         cnpj: "",
         razao_social: "",
@@ -750,6 +1202,9 @@ const handleChange = (e) => {
         data_compra: "",
         nome_vendedor: "",
         valor_compra: "",
+        valor_compra_contrato: "",
+        data_compra_contrato: "",
+        data_compra_string: "",
         observacoes: ""
       });
       reloadForm();
@@ -761,12 +1216,100 @@ const handleChange = (e) => {
 
   };
 
+
   const handleExport = () => {
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Imóveis");
-    XLSX.writeFile(wb, "imoveis.xlsx");
+
+    try {
+  
+      if (!data || data.length === 0) {
+        console.warn("Nenhum dado disponível para exportação.");
+        return;
+      }
+  
+      // Filtra colunas que não sejam ações (removendo aquelas que possuem 'cell')
+      const exportColumns = columns.filter((col) => !col.cell);
+  
+      // Função para remover "R$" e formatar valores corretamente
+      const formatCurrency = (value) => {
+        if (typeof value === "string") {
+          return value.replace(/R\$\s?/g, "").trim();
+        }
+        return value;
+      };
+  
+      // Função para converter datas de DD/MM/YYYY para YYYY-MM-DD (formato do Excel)
+      const formatDateForCSV = (value) => {
+        if (typeof value === "string" && value.includes("/")) {
+          const parts = value.split("/");
+          if (parts.length === 3) {
+            const [day, month, year] = parts;
+            return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+          }
+        }
+        return value;
+      };
+  
+      // Mapeia os dados para corresponder aos nomes das colunas filtradas
+      const exportData = data.map((row) => {
+        return exportColumns.reduce((acc, col) => {
+          if (col.name) {
+            let value =
+              typeof col.selector === "function"
+                ? col.selector(row)
+                : row[col.selector] || "";
+  
+            // Aplicar formatação para valores monetários e datas
+            if (["Valor"].includes(col.name)) {
+              value = formatCurrency(value);
+            } else if (["Data"].includes(col.name)) {
+              value = formatDateForCSV(value);
+            }
+
+  
+  
+            acc[col.name] = value;
+          }
+          return acc;
+        }, {});
+      });
+  
+      // Cria a planilha com os dados processados
+      const ws = XLSX.utils.json_to_sheet(exportData, { 
+        header: exportColumns.map((col) => col.name) 
+      });
+  
+      // Converte para CSV com BOM UTF-8 para manter acentos
+      const csvOutput = "\uFEFF" + XLSX.utils.sheet_to_csv(ws, { FS: ";" });
+  
+      // Cria um blob para download do CSV
+      const blob = new Blob([csvOutput], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+  
+      // Cria e dispara o download do arquivo CSV
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `matriculas.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      const fullname = localStorage.getItem("fullname");
+      const event = 'export';
+      const module = 'matriculas';
+      const user_id = localStorage.getItem("id");
+      const user_name = fullname;
+      logEvent(event, module, module_id, user_id, user_name, fullname + " fez uma exportação CSV dos dados em Matrículas", null, null);
+  
+      console.log("Exportação CSV concluída com sucesso!");
+    } catch (error) {
+      console.error("Erro ao exportar CSV:", error);
+    }
+  
   };
+  
+  
+  
+  
   
   const handleCEP = (e) => {
     const cep = e.target.value;
@@ -810,6 +1353,13 @@ const handleChange = (e) => {
     }
   };
 
+  const formatNumber = (number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+    }).format(number);
+  };
+
 
 
 
@@ -819,7 +1369,7 @@ const handleChange = (e) => {
         <div>
           <button className="btn btn-info btn-sm mr-15" onClick={() => handleEdit(row)}>
             <FontAwesomeIcon icon={faPenToSquare} /> Editar
-          </button>  
+          </button>
         </div>
       ),
       width: "125px",
@@ -828,56 +1378,72 @@ const handleChange = (e) => {
       name: "",
       cell: (row) => (
         <div>
-          <button className="btn btn-danger btn-sm" onClick={() => { setDeletingId(row.id); setShowDeleteModal(true); }}> 
+          <button className="btn btn-danger btn-sm" onClick={() => { setDeletingId(row.id); setShowDeleteModal(true); }}>
             <FontAwesomeIcon icon={faTrash} /> Excluir
           </button>
         </div>
       ),
       width: "125px",
     },
-    { "name": "Cod da Matrícula", "selector": (row) => row.cod, "sortable": true },
-    { "name": "Apelido", "selector": (row) => row.apelido, "sortable": true },
-    { "name": "Número da Matrícula", "selector": (row) => row.numero_matricula, "sortable": true },
-    { "name": "Cidade de Registro", "selector": (row) => row.cidade_registro, "sortable": true },
-    { "name": "Cartório Registro", "selector": (row) => row.cartorio_registro, "sortable": true },
-    { "name": "Nome Proprietário", "selector": (row) => row.nome_proprietario, "sortable": true },
-    { "name": "Nome Proprietário (Grupo)", "selector": (row) => row.nome_proprietario_grupo, "sortable": true },
-    { "name": "Tipo de Pessoa", "selector": (row) => row.tipo_pessoa, "sortable": true },
-    { "name": "CPF", "selector": (row) => row.cpf, "sortable": true },
-    { "name": "CNPJ", "selector": (row) => row.cnpj, "sortable": true },
-    { "name": "Razão Social", "selector": (row) => row.razao_social, "sortable": true },
-    { "name": "Área do Terreno", "selector": (row) => row.area_terreno, "sortable": true },
-    { "name": "Geometria Regular", "selector": (row) => row.geometria_regular, "sortable": true },
-    { "name": "Metros de Frente", "selector": (row) => row.metros_frente, "sortable": true },
-    { "name": "Metros de Fundo", "selector": (row) => row.metros_fundo, "sortable": true },
-    { "name": "Metros Lado Direito", "selector": (row) => row.metros_lado_direito, "sortable": true },
-    { "name": "Metros Lado Esquerdo", "selector": (row) => row.metros_lado_esquerdo, "sortable": true },
-    { "name": "Área Construída", "selector": (row) => row.area_construida, "sortable": true },
-    { "name": "CEP", "selector": (row) => row.cep, "sortable": true },
-    { "name": "Endereço", "selector": (row) => row.endereco, "sortable": true },
-    { "name": "Número", "selector": (row) => row.numero, "sortable": true },
-    { "name": "Complemento", "selector": (row) => row.complemento, "sortable": true },
-    { "name": "Bairro", "selector": (row) => row.bairro, "sortable": true },
-    { "name": "Cidade", "selector": (row) => row.cidade, "sortable": true },
-    { "name": "UF", "selector": (row) => row.uf, "sortable": true },
-    { "name": "Data de Compra", "selector": (row) => row.data_compra_string, "sortable": true },
-    { "name": "Nome do Vendedor", "selector": (row) => row.nome_vendedor, "sortable": true },
+    { name: "Cod da Matrícula", selector: (row) => row.cod || "", sortable: true },
+    { name: "Apelido", selector: (row) => row.apelido || "", sortable: true },
+    { name: "Número da Matrícula", selector: (row) => row.numero_matricula || "", sortable: true },
+    { name: "Cidade de Registro", selector: (row) => row.cidade_registro || "", sortable: true },
+    { name: "Cartório Registro", selector: (row) => row.cartorio_registro || "", sortable: true },
+    { name: "Nome Proprietário Matrícula", selector: (row) => row.nome_proprietario || "", sortable: true },
+    { name: "Nome Proprietário (Grupo)", selector: (row) => row.proprietarios?.[0]?.nome_proprietario_grupo || "", sortable: true },
+    { name: "Tipo de Pessoa", selector: (row) => row.proprietarios?.[0]?.tipo_pessoa || "", sortable: true },
+    { name: "CPF", selector: (row) => row.proprietarios?.[0]?.cpf || "", sortable: true },
+    { name: "CNPJ", selector: (row) => row.proprietarios?.[0]?.cnpj || "", sortable: true },
+    { name: "Razão Social", selector: (row) => row.proprietarios?.[0]?.razao_social || "", sortable: true },
+    { name: "Nome Proprietário Conceito", selector: (row) => row.nome_proprietario_conceito || "", sortable: true },
+    { name: "CEP", selector: (row) => row.cep || "", sortable: true },
+    { name: "Endereço", selector: (row) => row.endereco || "", sortable: true },
+    { name: "Número", selector: (row) => row.numero || "", sortable: true },
+    { name: "Complemento", selector: (row) => row.complemento || "", sortable: true },
+    { name: "Bairro", selector: (row) => row.bairro || "", sortable: true },
+    { name: "Cidade", selector: (row) => row.cidade || "", sortable: true },
+    { name: "UF", selector: (row) => row.uf || "", sortable: true },
+    { name: "Nome Vendedor", selector: (row) => row.nome_vendedor || "", sortable: true },
+    { name: "Data Compra Escritura", selector: (row) => row.data_compra_string || "", sortable: true },
     {
-      name: (
-        <div>
-          Valor da Compra
-          <br />
-          <span style={{ fontSize: '14px', fontWeight: 'normal' }}>
-            Total: {formatCurrency(totalCompra)}
-          </span>
-        </div>
-      ),
-      selector: (row) => formatCurrency(row.valor_compra),
-      sortable: true,
-      width: "200px"
+      name: "Valor Compra Escritura",
+      selector: (row) => (row.valor_compra && row.valor_compra.length > 0 ? "" + row.valor_compra : ""),
+      sortable: true
     },
-    { "name": "Observações", "selector": (row) => row.observacoes, "sortable": true }
+    { name: "Data Compra Contrato", selector: (row) => row.data_compra_contrato_string || "", sortable: true },
+    {
+      name: "Valor Compra Contrato",
+      selector: (row) => (row.valor_compra_contrato && row.valor_compra_contrato.length > 0 ? "" + row.valor_compra_contrato : ""),
+      sortable: true
+    },
+    { name: "Área do Terreno", selector: (row) => row.area_terreno || "", sortable: true },
+    { name: "Área Construída", selector: (row) => row.area_construida || "", sortable: true },
+    { name: "Geometria Regular", selector: (row) => row.geometria_regular || "", sortable: true },
+    { name: "Metros de Frente", selector: (row) => row.metros_de_frente || "", sortable: true },
+    { name: "Metros de Fundo", selector: (row) => row.metros_fundo || "", sortable: true },
+    { name: "Metros Lado Direito", selector: (row) => row.metros_lado_direito || "", sortable: true },
+    { name: "Metros Lado Esquerdo", selector: (row) => row.metros_lado_esquerdo || "", sortable: true },
+    { name: "Observações", selector: (row) => row.observacoes || "", sortable: true },
+    { name: "Latitude", selector: (row) => row.latitude || "", sortable: true },
+    { name: "Longitude", selector: (row) => row.longitude || "", sortable: true }
   ];
+  
+
+  // {
+  //   name: (
+  //     <div>
+  //       Valor da Compra
+  //       <br />
+  //       <span style={{ fontSize: '14px', fontWeight: 'normal' }}>
+  //         Total: {formatCurrency(totalCompra)}
+  //       </span>
+  //     </div>
+  //   ),
+  //   selector: (row) => formatCurrency(row.valor_compra),
+  //   sortable: true,
+  //   width: "200px"
+  // },
 
       const fetchTotalCompra = async () => {
         try {
@@ -923,10 +1489,7 @@ const handleChange = (e) => {
   };
 
   function formatCurrency(value) {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
+    return value;
   }
 
     // Função para mudar o tipo de pessoa (física ou jurídica)
@@ -950,7 +1513,7 @@ const handleChange = (e) => {
             <h1  ref={editRef}   className="mt-4" >
             <img 
               className="icone-title-serbom" 
-              src="https://gruposerbom.com.br/wp-content/uploads/2021/10/icone_gruposerbom.png" 
+              src="https://williamvieira.tech/LogoVRi-sem-fundo.png" 
               alt="Ícone Grupo Serbom" 
             /> Matrículas de Imóveis
           </h1>
@@ -985,19 +1548,20 @@ const handleChange = (e) => {
 
           
         {isVisible && (
-        <div className="card card-search">
-        <div className="card-body">
+        <div className="card card-search"   style={{ width: '100%' }}>
+        <div className="card-body" >
           <form onSubmit={handleSubmitSearch}>
             <div className="row">
               <div className="col-md-12">
-                <input
-                  type="text"
-                  className="form-control"
-                  name="search_value"
-                  value={formData.search_value}
-                  onChange={handleChangeForm}
-                  placeholder="Pesquisar"
-                />
+              <input
+        type="text"
+        className="form-control"
+        name="search_value"
+        value={formData.search_value}
+        onChange={handleInputChange}
+        placeholder="Pesquisar"
+      
+      />
               </div>
 
             </div>
@@ -1005,12 +1569,12 @@ const handleChange = (e) => {
             
             <div className="btn btn-light btn-clear mt-3" onClick={toggleVisibility}>
                
-               <FontAwesomeIcon icon={faXmark} /> Limpar
+               <FontAwesomeIcon icon={faXmark} /> Cancelar
            
             </div>
-            <button type="submit" className="btn btn-primary mt-3">
+            {/* <button type="submit" className="btn btn-primary mt-3">
               <FontAwesomeIcon icon={faSearch} /> Buscar
-            </button>
+            </button> */}
             </div>
             
           </form>
@@ -1024,17 +1588,22 @@ const handleChange = (e) => {
 
      
     
-
-{data.length > 0 && (
-      <button className="btn btn-dark mb-3 btnExport" onClick={handleExport}> <FontAwesomeIcon icon={faFileExcel} /> Excel</button>
-      )}
-       {data.length > 0 && (
-     <button className="btn btn-dark mb-3  btn-info-grid" onClick={handleCopy}>  <FontAwesomeIcon icon={faCopy} /> Copiar</button>
+      {data.length > 0 &&  (
+      
+      <button className="btn btn-dark mb-3 btnExport" onClick={handleExport}> <FontAwesomeIcon icon={faFileCsv} /> CSV</button>
+     
+     )}
+       {data.length > 0 &&  (
+    
+    <button className="btn btn-dark mb-3  btn-info-grid" onClick={handleCopy}>  <FontAwesomeIcon icon={faCopy} /> Copiar</button>
+    
     )}
 
-{data.length > 0 && (
+{data.length > 0 && !isVisible && (
+
           <button className="btn btn-secondary mb-3 btn-info-grid" onClick={toggleVisibility}> <FontAwesomeIcon icon={faFilter} /> Filtrar </button>
-        )}
+       
+       )}
 
         <div id="datatable-container">
         <DataTable
@@ -1087,7 +1656,8 @@ const handleChange = (e) => {
           {errors.apelido}
         </div>
       )}
-            <form onSubmit={handleSubmit}>
+            
+            
             <div className="row">
           <div className="col-md-4">
             <div className="form-floating select-complete">
@@ -1095,7 +1665,7 @@ const handleChange = (e) => {
             isClearable={true} // Enable the clear button
             value={optionsSelect.find(option => option.value === formData.cod_matricula)}
             key={key} // Change the key to force re-rende
-            onInputChange={handleInputChange} // Atualiza o valor enquanto o usuário digita
+            onInputChange={handleInputChangeCod} // Atualiza o valor enquanto o usuário digita
             onChange={handleChangeSelect} // Atualiza o estado com a opção selecionada
             options={optionsSelect} // Passa as opções para o select
             isLoading={loadingSelect} // Exibe o indicador de carregamento
@@ -1114,15 +1684,18 @@ const handleChange = (e) => {
           <div className="col-md-4">
           {isVisibleAdd && (
               <div type="submit" onClick={addIMovel} className="btn btn-light btn-relative">
-                  <FontAwesomeIcon icon={faXmark} /> Limpar
+                  <FontAwesomeIcon icon={faXmark} /> Cancelar
                 </div>
             )}
           </div>
           <div className="col-md-4">
-            {isEditing ? <div className="btn btn-dark mb-3 btn-ged" onClick={generatePDF}><FontAwesomeIcon icon={faFilePdf}></FontAwesomeIcon> GED</div> : ''  }
+          {isEditing ? (<GED register_id={"MT" + editingId} />) : ('')}  
+          {/* <GED key={keyGED} register_id={"MT" + editingId} /> */}
+          
           </div>
         </div>
         <hr className="my-4"></hr>
+        <form onSubmit={handleSubmit}>
               <div className="row">
           <div className="col-md-4">
           <div className="mb-3 form-floating">
@@ -1176,16 +1749,21 @@ const handleChange = (e) => {
           </div>
           <div className="col-md-4">
           <div className="mb-3 form-floating">
-                <input
-                  type="text"
-                  className="form-control"
+          <select
+                  className="form-select "
                   id="cartorio_registro"
                   name="cartorio_registro"
                   value={formData.cartorio_registro}
                   onChange={handleChange}
-                  placeholder="Informe o cartório de registro"
-                  
-                />
+                >
+                  <option value="">Selecione o Cartório</option>
+                 {/* Map through the cities data to generate <option> elements */}
+        {cartorios.map((cartorio) => (
+          <option key={cartorio.id} value={cartorio.nome}>
+            {cartorio.nome}
+          </option>
+        ))}
+                </select>
                 <label htmlFor="cartorio_registro">Cartório Registro</label>
               </div>
           </div>
@@ -1199,32 +1777,68 @@ const handleChange = (e) => {
                   onChange={handleChange}
                   
                 >
-                  <option value="">Selecione o Proprietário</option>
-                  <option value="VS">VS</option>
+           <option value="">Selecione</option>
+                    {/* Map through the cities data to generate <option> elements */}
+        {proprietarios.map((proprietario) => (
+          <option key={proprietario.id} value={proprietario.nome}>
+            {proprietario.nome}
+          </option>
+        ))}
                 </select>
-                <label htmlFor="nome_proprietario">Nome Proprietário</label>
+                <label htmlFor="nome_proprietario">Nome Proprietário Matrícula</label>
               </div>
         </div>
         <div className="col-md-4">
-        <div className="mb-3 form-floating">
+          <div className="mb-3 form-floating">
                 <select
                   className="form-select "
-                  id="nome_proprietario_grupo"
-                  name="nome_proprietario_grupo"
-                  value={formData.nome_proprietario_grupo}
+                  id="nome_proprietario_conceito"
+                  name="nome_proprietario_conceito"
+                  value={formData.nome_proprietario_conceito}
                   onChange={handleChange}
+                  
                 >
-                  <option value="">Selecione o Grupo de Proprietário</option>
-                  <option value="Serbom">Grupo Serbom</option>
+                  <option value="">Selecione</option>
+                    {/* Map through the cities data to generate <option> elements */}
+        {proprietarios.map((proprietario) => (
+          <option key={proprietario.id} value={proprietario.nome}>
+            {proprietario.nome}
+          </option>
+        ))}
                 </select>
-                <label htmlFor="nome_proprietario">Grupo Proprietário</label>
+                <label htmlFor="nome_proprietario_novo">Nome Proprietário Conceito</label>
+              </div>
+        </div>
+        <div className="col-md-4 none">
+        <div className="mb-3 form-floating select-multi">
+        <Select
+          isMulti
+          isSearchable // Permite a busca
+          options={optionsLocal}
+           className="form-control"
+         loadingMessage={() => "Carregando..."}
+         value={formData.local}
+          onChange={handleSelectChange} // Update formData on selection change
+          placeholder="Selecione o Local"
+          noOptionsMessage={() => "Nenhuma opção encontrada"}
+        />
+        <FontAwesomeIcon icon={faSearch} />
+        <label htmlFor="local">Local </label>
               </div>
         </div>
         </div>
               
 
 
-          <div className="row">
+          <div className="row none" >
+          <input
+              type="text"
+              className="form-control"
+              id="nome_proprietario_grupo"
+              name="nome_proprietario_grupo"
+              value={formData.nome_proprietario_grupo}
+              onChange={handleChange}
+            />
           <label className="labelCheck"><b>Pessoa</b></label>
             <div className="col-md-12 mb-3">
               
@@ -1260,7 +1874,7 @@ const handleChange = (e) => {
 
         {/* Campo CPF com Floating Label - Visível apenas para Pessoa Física */}
         {tipoPessoa === 'física' && (
-          <div className="form-floating mb-3">
+          <div className="form-floating mb-3 none">
             <InputMask
               mask="999.999.999-99" // Máscara de CPF
               className={`form-control ${errorCPF ? 'is-invalid' : ''}`}
@@ -1270,7 +1884,6 @@ const handleChange = (e) => {
               onChange={handleChange}
               onBlur={handleBlurCPF}
               placeholder=""
-              
             />
             <label htmlFor="cpf">Informe o CPF do proprietário</label>
             {errorCPF && <div className="invalid-feedback">CPF inválido!</div>}
@@ -1279,7 +1892,7 @@ const handleChange = (e) => {
 
         {/* Campo CNPJ com Floating Label - Visível apenas para Pessoa Jurídica */}
         {tipoPessoa === 'jurídica' && (
-          <div className="form-floating mb-3">
+          <div className="form-floating mb-3 none">
             <InputMask
               mask="99.999.999/9999-99" // Máscara de CNPJ
               className={`form-control ${errorCNPJ ? 'is-invalid' : ''}`}
@@ -1289,7 +1902,6 @@ const handleChange = (e) => {
               onChange={handleChange}
               onBlur={handleBlurCNPJ}
               placeholder=" "
-              
             />
             <label htmlFor="cnpj">Informe o CNPJ do proprietário</label>
             {errorCNPJ && <div className="invalid-feedback">CNPJ inválido!</div>}
@@ -1298,7 +1910,7 @@ const handleChange = (e) => {
 
         {/* Campo Razão Social - Visível apenas para Pessoa Jurídica */}
         {tipoPessoa === 'jurídica' && (
-          <div className="form-floating mb-3">
+          <div className="form-floating mb-3 none">
             <input
               type="text"
               className="form-control"
@@ -1313,6 +1925,7 @@ const handleChange = (e) => {
           </div>
         )}
       
+     
 <div className="row">
 <div className="col-md-4">
             <div className="mb-3 form-floating">
@@ -1328,7 +1941,6 @@ const handleChange = (e) => {
         }}
         onBlur={(e) => {handleCEP(e) }}
         placeholder="Informe o CEP"
-        
       />
                 <label htmlFor="cep">CEP</label>
                 {errorCEP && <div className="invalid-feedback">CEP inválido!</div>}
@@ -1427,7 +2039,38 @@ const handleChange = (e) => {
                 <label htmlFor="uf">UF</label>
               </div>
     </div>
-    <div className="col-md-4">
+
+
+      <div className="col-md-6">
+  <div className="mb-3 form-floating">
+  <input
+        className="form-control"
+        id="latitude"
+        name="latitude"
+        value={formData.latitude}
+        onChange={handleChange}
+        placeholder="latitude"
+      />
+                <label htmlFor="latitude">Latitude</label>
+              </div>
+    </div>
+    <div className="col-md-6">
+  <div className="mb-3 form-floating">
+  <input
+        className="form-control"
+        id="longitude"
+        name="longitude"
+        value={formData.longitude}
+        onChange={handleChange}
+        placeholder="longitude"
+      />
+                <label htmlFor="longitude">Longitude</label>
+              </div>
+    </div>
+
+
+    
+    <div className="col-md-12">
   <div className="mb-3 form-floating">
                 <input
                   type="text"
@@ -1442,7 +2085,8 @@ const handleChange = (e) => {
                 <label htmlFor="nome_vendedor">Nome Vendedor</label>
               </div>
     </div>
-    <div className="col-md-4">
+   
+    <div className="col-md-6">
     <div className="mb-3 form-floating">
     <InputMask
           mask="99/99/9999"
@@ -1456,7 +2100,7 @@ const handleChange = (e) => {
           
           
         />
-                <label htmlFor="data_compra_string">Data Compra </label>
+                <label htmlFor="data_compra_string">Data Compra Escritura</label>
                 {
                 errorData && 
                 <div className="invalid-feedback">{errorData}</div>
@@ -1465,7 +2109,7 @@ const handleChange = (e) => {
               </div>
               
     </div>
-    <div className="col-md-4">
+    <div className="col-md-6">
     <div className="mb-3 form-floating">
    <input
      id="valor_compra"
@@ -1477,24 +2121,48 @@ const handleChange = (e) => {
       className="form-control"
       
       />
-              <label htmlFor="valor_compra">Valor Compra </label>
+              <label htmlFor="valor_compra">Valor Compra Escritura </label>
               </div>
     </div>
-    <div className="col-md-12">
-  <div className="mb-3 form-floating">
-  <textarea
-        className="form-control"
-        id="observacoes"
-        name="observacoes"
-        value={formData.observacoes}
-        onChange={handleChange}
-        placeholder="Observações"
+    <div className="col-md-6">
+    <div className="mb-3 form-floating">
+    <InputMask
+          mask="99/99/9999"
+          value={formData.data_compra_contrato_string}
+          onChange={handleChange}
+          onBlur={handleBlurData}  // Validate when input loses focus
+          placeholder="dd/mm/yyyy"
+          className={`form-control ${errorData ? 'is-invalid' : ''}`}
+          id="data_compra_contrato_string"
+          name="data_compra_contrato_string"
+        />
+                <label htmlFor="data_compra_contrato_string">Data Compra Contrato</label>
+                {
+                errorData && 
+                <div className="invalid-feedback">{errorData}</div>
+                
+                }
+              </div>
+              
+    </div>
+
+    
+    <div className="col-md-6">
+    <div className="mb-3 form-floating">
+   <input
+     id="valor_compra_contrato"
+     name="valor_compra_contrato"
+     type="text"
+     value={formData.valor_compra_contrato}
+     onChange={handleChange}
+     placeholder="Digite o valor"
+      className="form-control"
+      
       />
-                <label htmlFor="observacoes">Observações</label>
+              <label htmlFor="valor_compra">Valor Compra Contrato </label>
               </div>
     </div>
-</div>
-<div className="row">
+
 <div className="col-md-6">
   <div className="mb-3 form-floating">
   <input
@@ -1503,11 +2171,12 @@ const handleChange = (e) => {
         name="area_terreno"
         value={formData.area_terreno}
         onChange={handleChange}
-        placeholder="Área Terreno (m²)"
-        type="number"
+        
+        placeholder="Área Terreno "
+        type="text"
         
       />
-                <label htmlFor="area_terreno">Área Terreno (m2)</label>
+                <label htmlFor="area_terreno">Área Terreno (m2) </label>
               </div>
     </div>
     <div className="col-md-6">
@@ -1518,14 +2187,15 @@ const handleChange = (e) => {
         name="area_construida"
         value={formData.area_construida}
         onChange={handleChange}
-        placeholder="Área Construída (m2)"
-        type="number"
+        
+        placeholder="Área Construída "
+        type="text"
         
       />
-                <label htmlFor="area_construida">Área Construída (m2)</label>
+                <label htmlFor="area_construida">Área Construída (m2) </label>
               </div>
     </div>
-</div>
+
 
 
 <div className="row">
@@ -1590,10 +2260,8 @@ const handleChange = (e) => {
             </div>
           </div>
 
-
-          {metrosFrente == 'Sim' && (
-<div className="row">
-<div className="col-md-3">
+          {metrosFrente == 'Não' && (
+          <div className="col-md-12">
   <div className="mb-3 form-floating">
   <input
         className="form-control"
@@ -1601,14 +2269,37 @@ const handleChange = (e) => {
         name="metros_de_frente"
         value={formData.metros_de_frente}
         onChange={handleChange}
+        
         placeholder="Metros de Frente"
-        type="number"
+        type="text"
         
       />
-                <label htmlFor="metros_fundo">Metros de Frente (m2)</label>
+                <label htmlFor="metros_fundo">Metros de Frente </label>
               </div>
   </div>
-  <div className="col-md-3">
+  )}
+
+
+          {metrosFrente == 'Sim' && (
+<div className="">
+<div className="col-md-12">
+  <div className="mb-3 form-floating">
+
+  <input
+        className="form-control"
+        id="metros_de_frente"
+        name="metros_de_frente"
+        value={formData.metros_de_frente}
+        onChange={handleChange}
+        
+        placeholder="Metros de Frente"
+        type="text"
+        
+      />
+                <label htmlFor="metros_fundo">Metros de Frente </label>
+              </div>
+  </div>
+  <div className="col-md-12">
   <div className="mb-3 form-floating">
   <input
         className="form-control"
@@ -1616,45 +2307,66 @@ const handleChange = (e) => {
         name="metros_fundo"
         value={formData.metros_fundo}
         onChange={handleChange}
+        
         placeholder="Metros de Fundo"
-        type="number"
+        type="text"
         
       />
-                <label htmlFor="metros_fundo">Metros de Fundo (m2)</label>
+                <label htmlFor="metros_fundo">Metros de Fundo </label>
               </div>
   </div>
-  <div className="col-md-3">
+  <div className="col-md-12">
   <div className="mb-3 form-floating">
   <input
         className="form-control"
         id="metros_lado_direito"
         name="metros_lado_direito"
+        
         value={formData.metros_lado_direito}
         onChange={handleChange}
         placeholder="Metros Lado Direito"
-        type="number"
+        type="text"
         
       />
-                <label htmlFor="metros_lado_direito">Metros Lado Direito (m2)</label>
+                <label htmlFor="metros_lado_direito">Metros Lado Direito </label>
               </div>
   </div>
-  <div className="col-md-3">
+  <div className="col-md-12">
   <div className="mb-3 form-floating">
   <input
         className="form-control"
         id="metros_lado_esquerdo"
+        
         name="metros_lado_esquerdo"
         value={formData.metros_lado_esquerdo}
         onChange={handleChange}
         placeholder="Metros Lado Direito"
-        type="number"
+        type="text"
         
       />
-                <label htmlFor="metros_lado_esquerdo">Metros Lado Esquerdo (m2)</label>
+                <label htmlFor="metros_lado_esquerdo">Metros Lado Esquerdo </label>
               </div>
   </div>
 </div>
 )}
+
+
+
+<div className="col-md-12">
+  <div className="mb-3 form-floating">
+  <textarea
+        className="form-control"
+        id="observacoes"
+        name="observacoes"
+        value={formData.observacoes}
+        onChange={handleChange}
+        placeholder="Observações"
+      />
+                <label htmlFor="observacoes">Observações</label>
+              </div>
+    </div>
+</div>
+
 
              
 
@@ -1669,21 +2381,96 @@ const handleChange = (e) => {
 
        
 
-        <div className="card shadow-lg border-0 rounded-lg mt-4 mt-20">
-        <div className="card-body">
-        <HighchartsReact highcharts={Highcharts} options={options} />
-</div>
-</div>
         
+
+
+{isEditing ? (
+<div className="card shadow-lg border-0 rounded-lg mt-4 mt-20">
+<div className="card-body">
+<div class="tables-container">
+    
+            <div class="table-wrapper">
+           
+           <div className="div-1">
+           <h6 class="text-center border p-2 title-grade">ATUAL</h6>
+        
+<table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Data Criação</th>
+                    <th>Código</th>
+                    <th>Apelido</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{formatDateToBR(formData.date_insert)}</td>
+                    <td>{formData.cod}</td>
+                    <td>{formData.apelido}</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+        <div className="div-2">
+        <h6 class="text-center border p-2 title-grade">HISTÓRICO</h6>
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Data Alteração</th>
+                    <th>Código</th>
+                    <th>Apelido</th>
+                    <th>Descrição</th>
+                    <th>Usuário</th>
+                </tr>
+            </thead>
+            <tbody>
+            {dataHistory.length === 0 ? (
+          <tr>
+            <td colSpan="6">Não possui dados</td>
+          </tr>
+        ) : (
+          dataHistory.map((row, index) => {
+   
+
+            const matriculas = JSON.parse(row.codigos_matricula);
+
+            return (
+              <tr key={index}> 
+                <td>{row.date}</td>
+                <td>{row.module_id}</td>
+                <td>{row.apelido}</td>
+                <td>{row.desc}</td>
+                <td>{row.user_name}</td>
+              </tr>
+            );
+          })
+        )}
+            </tbody>
+        </table>
+        </div>
+        </div>
+        </div>
+
+</div>
+</div>
+    ) : ''}
+
+{/* {!isEditing ? (
+{/* <div className="card shadow-lg border-0 rounded-lg mt-4 mt-20">
+        <div className="card-body"> */}
+        {/* <HighchartsReact highcharts={Highcharts} options={options} /> */}
+{/* </div>
+</div> */}
+
         <footer className="py-4 bg-light mt-auto footerInterno">
             <div className="container-fluid px-4">
                 <div className="text-center">
-                    <div className="text-muted text-center">© 2024 - Grupo Serbom. Todos os direitos reservados.</div>
+                    <div className="text-muted text-center">© VRI - Todos os direitos reservados.</div>
                 </div>
             </div>
         </footer>
       </main>
-      {/* Modal de Confirmação de Exclusão */}
+
       {showDeleteModal && (
           <div className="modal fade show" style={{ display: 'block', paddingRight: '17px' }} tabIndex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
             <div className="modal-dialog modal-dialog-centered">
@@ -1703,7 +2490,7 @@ const handleChange = (e) => {
             </div>
           </div>
         )} 
-         {/* Modal de Confirmação de Exclusão */}
+      
       {showModalCod && (
           <div className="modal fade show" style={{ display: 'block', paddingRight: '17px' }} tabIndex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
             <div className="modal-dialog modal-dialog-centered">
@@ -1723,7 +2510,6 @@ const handleChange = (e) => {
           </div>
         )}
 
-           {/* Modal de Confirmação de Exclusão */}
       {showModalCopy && (
           <div className="modal fade show" style={{ display: 'block', paddingRight: '17px' }} tabIndex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
             <div className="modal-dialog modal-dialog-centered">

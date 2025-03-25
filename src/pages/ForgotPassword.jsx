@@ -79,7 +79,7 @@ function ForgotPassword() {
         <div className="col-lg-5">
           <div className="card shadow-lg border-0 rounded-lg mt-5">
             <div className="card-header padding-15 text-center">
-                <img src="https://gruposerbom.com.br/wp-content/uploads/elementor/thumbs/Logo-Grupo-Serbom-per6qbsxueuf8h0iiocnzd70s31osvp3jd4u2p5se8.webp" alt="Logo" />
+            <img src="https://williamvieira.tech/LogoVRi-sem-fundo.png" alt="Logo" className="img-file" />
             </div>
             <div className="card-body">
 
